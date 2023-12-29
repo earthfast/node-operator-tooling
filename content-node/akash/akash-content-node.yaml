@@ -1,0 +1,38 @@
+---
+version: "2.0"
+services:
+  armada-content-node:
+    image: ghcr.io/armada-network/content-node:v0.5.8
+    expose:
+      - port: 30080
+        as: 80
+        to:
+          - global: true
+    env:
+      - CONTRACT_ADDRESS=0x172CEb125F6C86B7920fD391407aca0B5F416648 # testnet-sepolia
+      - DATABASE_DIR=/db_data
+      - ETH_RPC_ENDPOINT=
+      - HOSTING_CACHE_DIR=/hosting_cache
+      - HTTP_PORT=30080
+      - NODE_ID=
+profiles:
+  compute:
+    armada-content-node:
+      resources:
+        cpu:
+          units: 2.0
+        memory:
+          size: 2048Mi
+        storage:
+          - size: 10Gi
+  placement:
+    akash:
+      pricing:
+        armada-content-node:
+          denom: uakt
+          amount: 10000
+deployment:
+  armada-content-node:
+    akash:
+      profile: armada-content-node
+      count: 1

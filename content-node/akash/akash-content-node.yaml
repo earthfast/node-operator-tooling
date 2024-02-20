@@ -8,31 +8,35 @@ services:
         as: 80
         to:
           - global: true
+        accept:
+          - # optional hostname if you want to CNAME a proxy URL to this node
     env:
       - CONTRACT_ADDRESS=0x172CEb125F6C86B7920fD391407aca0B5F416648 # testnet-sepolia
       - DATABASE_DIR=/db_data
-      - ETH_RPC_ENDPOINT=
       - HOSTING_CACHE_DIR=/hosting_cache
       - HTTP_PORT=30080
+
+      # to be filled in by operator running this node
+      - ETH_RPC_ENDPOINT=
       - NODE_ID=
 profiles:
   compute:
     armada-content-node:
       resources:
         cpu:
-          units: 2.0
+          units: 0.5
         memory:
-          size: 2048Mi
+          size: 512Mi
         storage:
           - size: 10Gi
   placement:
-    akash:
+    dcloud:
       pricing:
         armada-content-node:
           denom: uakt
-          amount: 10000
+          amount: 1000
 deployment:
   armada-content-node:
-    akash:
+    dcloud:
       profile: armada-content-node
       count: 1

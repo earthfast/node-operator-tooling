@@ -1,6 +1,8 @@
 ### Content Node
 
-There's two different ways to run Content Nodes: Ubuntu VM and Akash Network. 
+Content nodes can be run almost anywhere that supports docker containers. As long as you can run docker on it and get a URL with SSL, it will function perfectly fine as a content node. For full specs and documentation see [here](https://docs.armadanetwork.com/armada-network-docs/node-operators/content-node-setup).
+
+There's two examples in this repo for different ways to run Content Nodes: Ubuntu VM and Akash Network. 
 
 ##### Ubuntu VMs
 Ubuntu VMs can be used to run your own node from scratch. For example if you're a node operator or trying to run your own hardware. This can be run on any on-prem or self hosted system as well as the major cloud hosting services like AWS, GCP, Azure etc.

@@ -1,6 +1,6 @@
 ## Armada Domain Node using Cloudflare Pages
 
-This example shows how you can use Cloudflare Pages + Github Actions instead of a Ubuntu VM to host a domain node. The domain node is the gateway for you application served using Armada, for more information check out the [official docs](https://docs.armadanetwork.com/armada-network-docs/overview/architecture-overview#domain-node).
+This example shows how you can use Cloudflare Pages + Github Actions instead of a Ubuntu VM to host a domain node.
 
 #### How it works
 A Github Action runs a job every day at midnight to build the latest version of the Armada service worker. The latest files for the domain node get committed to your repository that has the Github Action running in it.

@@ -2,9 +2,9 @@
 
 This repo provides examples for different ways to run nodes on the Armada Network.
 
-### Content Node
+### Content Nodes
 Examples [here](/content-node)
 
 
-### Domain Node
+### Domain Nodes
 Examples [here](/domain-node)

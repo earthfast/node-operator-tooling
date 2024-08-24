@@ -100,7 +100,6 @@ fi
 
 # create data dir for docker container and start container
 # if all the env vars are in an .env file could also run
-# docker run --env-file .env -p 30080:30080 --restart unless-stopped -d ghcr.io/armada-network/domain-node:latest
 docker run \
   -e CONTRACT_ADDRESS=$CONTRACT_ADDRESS \
   -e ETH_RPC_ENDPOINT=$ETH_RPC_ENDPOINT \
@@ -110,4 +109,4 @@ docker run \
   -p 30080:30080 \
   --restart unless-stopped \
   -d \
-  ghcr.io/armada-network/domain-node:latest
+  docker.io/earthfast/domain-node:latest

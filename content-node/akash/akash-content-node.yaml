@@ -1,8 +1,8 @@
 ---
 version: "2.0"
 services:
-  armada-content-node:
-    image: ghcr.io/armada-network/content-node:v0.5.8
+  earthfast-content-node:
+    image: docker.io/earthfast/content-node:v0.6.0
     expose:
       - port: 30080
         as: 80
@@ -21,7 +21,7 @@ services:
       - NODE_ID=
 profiles:
   compute:
-    armada-content-node:
+    earthfast-content-node:
       resources:
         cpu:
           units: 0.5
@@ -32,11 +32,11 @@ profiles:
   placement:
     dcloud:
       pricing:
-        armada-content-node:
+        earthfast-content-node:
           denom: uakt
           amount: 1000
 deployment:
-  armada-content-node:
+  earthfast-content-node:
     dcloud:
-      profile: armada-content-node
+      profile: earthfast-content-node
       count: 1

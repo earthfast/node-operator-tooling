@@ -36,9 +36,9 @@ def main():
         print("region is invalid. region must be either us, eu, emea, or apac")
         exit(1)
 
-    # stake 100 ARMADA tokens
+    # stake 100 tokens for the node
     STAKE_AMOUNT = 100
-    run_command(f"npx armada-cli operator stake {operator_id} {STAKE_AMOUNT} --key {private_key} --network {network}")
+    run_command(f"npx earthfast-cli operator stake {operator_id} {STAKE_AMOUNT} --key {private_key} --network {network}")
 
     # make sure that host is available
     response = requests.get(f"{hostname}/statusz")
@@ -48,11 +48,11 @@ def main():
 
     ENABLED = False
     PRICE = 1.0
-    run_command(f"npx armada-cli node create {operator_id} {hostname}:{region}:{ENABLED}:{PRICE} --key {private_key} --network {network}")
+    run_command(f"npx earthfast-cli node create {operator_id} {hostname}:{region}:{ENABLED}:{PRICE} --key {private_key} --network {network}")
 
-    print("Node created successfully. Please save the 'nodeId' value from the output above. You can always retrieve this value by running 'npx armada-cli node list --network $NETWORK'")
+    print("Node created successfully. Please save the 'nodeId' value from the output above. You can always retrieve this value by running 'npx earthfast-cli node list --network $NETWORK'")
 
-    nodes=run_command(f"npx armada-cli node list --network {network} --json", True)
+    nodes=run_command(f"npx earthfast-cli node list --network {network} --json", True)
 
     nodeId = None
     for node in nodes:
@@ -60,7 +60,7 @@ def main():
             nodeId = node.get("id")
             break
     
-    run_command(f"npx armada-cli node enable {nodeId} true --key {private_key} --network {network}")
+    run_command(f"npx earthfast-cli node enable {nodeId} true --key {private_key} --network {network}")
 
 
 if __name__ == "__main__":

@@ -104,6 +104,6 @@ sudo docker run \
   --restart unless-stopped \
   -d \
   --name content-node \
-  armadanetwork/content-node:latest
+  earthfast/content-node:latest
 
 echo "Docker container started"

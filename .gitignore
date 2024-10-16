@@ -1,3 +1,4 @@
 .DS_Store
 values.env
 *private*
+earthfast_node_cli.egg-info

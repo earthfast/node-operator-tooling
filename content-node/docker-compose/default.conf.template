@@ -31,7 +31,7 @@ server {
 
     location / {
         set $do_serve 1;
-        if ($SETUP_SSL != "true") {
+        if ($SETUP_SSL = "false") {
             set $do_serve 0;
         }
         if ($do_serve = 0) {

@@ -18,11 +18,30 @@ fi
 # Install Docker Compose if not already installed
 if ! command -v docker-compose &> /dev/null; then
     echo "Installing Docker Compose..."
-    sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
+    DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
+    mkdir -p $DOCKER_CONFIG/cli-plugins
+    COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.17.2/docker-compose-$(uname -s)-$(uname -m)"
+    curl -SL $COMPOSE_URL -o $DOCKER_CONFIG/cli-plugins/docker-compose
+    chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
     echo "Docker Compose installed successfully."
 else
     echo "Docker Compose is already installed."
 fi
 
-echo "All dependencies installed. Please log out and log back in for group changes to take effect."
+# Set up Docker to run without sudo
+if ! groups $USER | grep -q "\bdocker\b"; then
+    sudo usermod -aG docker $USER
+    echo "Added $USER to the docker group."
+    echo "Please log out and log back in for the changes to take effect."
+else
+    echo "User $USER is already in the docker group."
+fi
+
+# Verify installations
+echo "Verifying installations..."
+docker --version
+docker-compose --version
+
+echo "All dependencies installed."
+echo "If you haven't been prompted to log out and log back in, you should be able to run Docker commands without sudo now."
+echo "If you were prompted to log out and log back in, please do so for the changes to take effect."

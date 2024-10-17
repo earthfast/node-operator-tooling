@@ -7,7 +7,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
       - ./letsencrypt:/etc/letsencrypt
     environment:
       - SERVER_NAME=${SERVER_NAME}
@@ -15,14 +15,14 @@ services:
       - HTTP_PORT=${HTTP_PORT}
     command: >
       /bin/bash -c "
-      envsubst '$$SERVER_NAME $$SETUP_SSL $$HTTP_PORT' < /etc/nginx/conf.d/default.conf > /etc/nginx/conf.d/default.conf.tmp &&
-      cat /etc/nginx/conf.d/default.conf.tmp > /etc/nginx/conf.d/default.conf &&
+      envsubst '$$SERVER_NAME $$SETUP_SSL $$HTTP_PORT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf &&
       nginx -g 'daemon off;'"
 
   certbot:
     image: certbot/certbot
     volumes:
       - ./letsencrypt:/etc/letsencrypt
+      - ./webroot:/var/www/certbot
     command: >
       /bin/sh -c '
       if [ "${SETUP_SSL}" = "true" ]; then

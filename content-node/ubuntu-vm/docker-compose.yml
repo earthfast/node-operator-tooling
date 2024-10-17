@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "${SETUP_SSL:-false}"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./letsencrypt:/etc/letsencrypt
+    environment:
+      - SERVER_NAME=${SERVER_NAME}
+      - SETUP_SSL=${SETUP_SSL:-false}
+    command: >
+      /bin/bash -c "
+      envsubst '$$SERVER_NAME $$SETUP_SSL' < /etc/nginx/conf.d/default.conf > /etc/nginx/conf.d/default.conf.tmp &&
+      mv /etc/nginx/conf.d/default.conf.tmp /etc/nginx/conf.d/default.conf &&
+      nginx -g 'daemon off;'"
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./letsencrypt:/etc/letsencrypt
+    command: >
+      sh -c "
+      if [ $$SETUP_SSL = true ]; then
+        certbot certonly --webroot --webroot-path=/var/www/certbot
+        --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email
+        -d ${SERVER_NAME};
+      else
+        echo 'SSL setup is disabled';
+      fi"
+    depends_on:
+      - nginx
+
+  content-node:
+    image: earthfast/content-node:latest
+    environment:
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+      - DATABASE_DIR=/data/database
+      - ETH_RPC_ENDPOINT=${RPC_URL}
+      - HOSTING_CACHE_DIR=/data/hosting_cache
+      - HTTP_PORT=${HTTP_PORT}
+      - NODE_ID=${NODE_ID}
+    volumes:
+      - ${DATABASE_DIR}:/data/database
+      - ${HOSTING_CACHE_DIR}:/data/hosting_cache
+    ports:
+      - "${HTTP_PORT}:${HTTP_PORT}"
+    restart: unless-stopped
+
+volumes:
+  letsencrypt:

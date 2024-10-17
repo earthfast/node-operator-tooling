@@ -23,6 +23,8 @@ services:
         envsubst '$$SERVER_NAME $$HTTP_PORT' < /etc/nginx/templates/http.conf.template > /etc/nginx/conf.d/default.conf;
       fi &&
       nginx -g 'daemon off;'"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
   certbot:
     image: certbot/certbot
@@ -42,6 +44,8 @@ services:
       fi'
     depends_on:
       - nginx
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
   content-node:
     image: earthfast/content-node:latest
@@ -57,6 +61,15 @@ services:
       - ${HOSTING_CACHE_DIR}:/data/hosting_cache
     ports:
       - "${HTTP_PORT}:${HTTP_PORT}"
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 60 --cleanup
     restart: unless-stopped
 
 volumes:

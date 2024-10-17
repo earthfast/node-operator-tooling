@@ -7,14 +7,15 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./default.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./letsencrypt:/etc/letsencrypt
+      - ./webroot:/var/www/certbot
     environment:
       - SERVER_NAME=${SERVER_NAME}
       - SETUP_SSL=${SETUP_SSL:-false}
       - HTTP_PORT=${HTTP_PORT}
     command: >
-      /bin/bash -c "
+      /bin/sh -c "
       envsubst '$$SERVER_NAME $$SETUP_SSL $$HTTP_PORT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf &&
       nginx -g 'daemon off;'"
 
@@ -23,14 +24,16 @@ services:
     volumes:
       - ./letsencrypt:/etc/letsencrypt
       - ./webroot:/var/www/certbot
+    entrypoint: /bin/sh
     command: >
-      /bin/sh -c '
+      -c '
       if [ "${SETUP_SSL}" = "true" ]; then
         certbot certonly --webroot --webroot-path=/var/www/certbot
         --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email
         -d ${SERVER_NAME} || true;
       else
         echo "SSL setup is disabled";
+        sleep infinity;
       fi'
     depends_on:
       - nginx

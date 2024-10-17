@@ -8,7 +8,11 @@ server {
     }
 
     location / {
-        if ($SETUP_SSL = true) {
+        set $do_redirect 0;
+        if ($SETUP_SSL = "true") {
+            set $do_redirect 1;
+        }
+        if ($do_redirect = 1) {
             return 301 https://$host$request_uri;
         }
         proxy_pass http://content-node:${HTTP_PORT};
@@ -26,7 +30,11 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
 
     location / {
-        if ($SETUP_SSL != true) {
+        set $do_serve 1;
+        if ($SETUP_SSL != "true") {
+            set $do_serve 0;
+        }
+        if ($do_serve = 0) {
             return 404;
         }
         proxy_pass http://content-node:${HTTP_PORT};

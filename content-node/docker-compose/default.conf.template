@@ -1,3 +1,8 @@
+map $SETUP_SSL $ssl_enabled {
+    default 0;
+    "true"  1;
+}
+
 server {
     listen 80;
     listen [::]:80;
@@ -8,11 +13,7 @@ server {
     }
 
     location / {
-        set $do_redirect 0;
-        if ($SETUP_SSL = "true") {
-            set $do_redirect 1;
-        }
-        if ($do_redirect = 1) {
+        if ($ssl_enabled = 1) {
             return 301 https://$host$request_uri;
         }
         proxy_pass http://content-node:${HTTP_PORT};
@@ -30,11 +31,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
 
     location / {
-        set $do_serve 1;
-        if ($SETUP_SSL = "false") {
-            set $do_serve 0;
-        }
-        if ($do_serve = 0) {
+        if ($ssl_enabled = 0) {
             return 404;
         }
         proxy_pass http://content-node:${HTTP_PORT};

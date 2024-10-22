@@ -43,7 +43,6 @@ docker-compose ps
 Edit the `.env` file to configure your Content Node. Here are the key variables:
 
 - `SERVER_NAME`: Your domain name
-- `HTTP_PORT`: The port your content node will listen on
 - `RPC_URL`: Your Ethereum RPC endpoint
 - `NODE_ID`: Your unique node identifier
 - `CONTRACT_ADDRESS`: The address of the content node contract

@@ -24,8 +24,22 @@ else
     echo "User $USER is already in the docker group."
 fi
 
+# Install Docker Compose V2 if not already installed
+if ! docker compose version &> /dev/null; then
+    echo "Installing Docker Compose V2..."
+    DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
+    mkdir -p $DOCKER_CONFIG/cli-plugins
+    COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d '"' -f 4)
+    sudo curl -SL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o $DOCKER_CONFIG/cli-plugins/docker-compose
+    sudo chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
+    echo "Docker Compose V2 installed successfully."
+else
+    echo "Docker Compose V2 is already installed."
+fi
+
 # Verify installations
 echo "Verifying installations..."
 docker --version
+docker compose version
 
 echo "All dependencies installed."

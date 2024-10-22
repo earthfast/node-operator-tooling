@@ -6,7 +6,7 @@ Content nodes can be run almost anywhere that supports docker containers. As lon
 
 There's two examples in this repo for different ways to run Content Nodes: Ubuntu VM and Akash Network. 
 
-##### 1.  [Ubuntu VMs](/content-node/ubuntu-vm/README.md)
+##### 1.  [Ubuntu VMs](/content-node/docker-compose/README.md) (using docker compose)
 Ubuntu VMs can be used to run your own node from scratch. For example if you're a node operator or trying to run your own hardware. This can be run on any on-prem or self hosted system as well as the major cloud hosting services like AWS, GCP, Azure etc.
 
 This node type also lets you provision SSL certificates with LetsEncrypt or you can optionally use Cloudflare to proxy with SSL

@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Update package list
 sudo apt update
 
@@ -19,7 +18,7 @@ fi
 if ! groups $USER | grep -q "\bdocker\b"; then
     sudo usermod -aG docker $USER
     echo "Added $USER to the docker group."
-    echo "Please log out and log back in for the changes to take effect."
+    newgrp docker
 else
     echo "User $USER is already in the docker group."
 fi
@@ -41,5 +40,4 @@ fi
 echo "Verifying installations..."
 docker --version
 docker compose version
-
 echo "All dependencies installed."

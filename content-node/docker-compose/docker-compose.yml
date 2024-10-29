@@ -12,12 +12,13 @@ services:
       - ./letsencrypt:/etc/letsencrypt
       - ./webroot:/var/www/certbot
     environment:
-      - SERVER_NAME=$${SERVER_NAME%/}
+      - SERVER_NAME=${SERVER_NAME}
       - SETUP_SSL=${SETUP_SSL:-false}
     command: >
       /bin/sh -c "
+      SERVER_NAME=$${SERVER_NAME%/};
       if [ '${SETUP_SSL}' = 'true' ]; then
-        if [ ! -f /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem ]; then
+        if [ ! -f /etc/letsencrypt/live/$${SERVER_NAME}/fullchain.pem ]; then
           echo 'SSL certificates not found, starting with HTTP configuration';
           envsubst '$$SERVER_NAME' < /etc/nginx/templates/http.conf.template > /etc/nginx/conf.d/default.conf;
         else
@@ -36,9 +37,6 @@ services:
     volumes:
       - ./letsencrypt:/etc/letsencrypt
       - ./webroot:/var/www/certbot
-    environment:
-      - CERTBOT_EMAIL=${CERTBOT_EMAIL}
-      - SERVER_NAME=$${SERVER_NAME%/}
     command: >
       certonly --webroot --webroot-path=/var/www/certbot
       --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email --force-renewal

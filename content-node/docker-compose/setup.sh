@@ -184,4 +184,4 @@ main() {
 }
 
 # Execute the main function with docker group permissions
-sg docker "$(declare -f set_environment create_env_file launch_content_node main ENVIRONMENT=\"$ENVIRONMENT\"); main"
+sg docker "$(declare -f validate_domain validate_node_id validate_email validate_boolean get_sanitized_input set_environment create_env_file launch_content_node main ENVIRONMENT=\"$ENVIRONMENT\"); main"

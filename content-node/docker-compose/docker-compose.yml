@@ -12,7 +12,7 @@ services:
       - ./letsencrypt:/etc/letsencrypt
       - ./webroot:/var/www/certbot
     environment:
-      - SERVER_NAME=${SERVER_NAME}
+      - SERVER_NAME=${SERVER_NAME%/}
       - SETUP_SSL=${SETUP_SSL:-false}
     command: >
       /bin/sh -c "
@@ -36,6 +36,9 @@ services:
     volumes:
       - ./letsencrypt:/etc/letsencrypt
       - ./webroot:/var/www/certbot
+    environment:
+      - CERTBOT_EMAIL=${CERTBOT_EMAIL}
+      - SERVER_NAME=${SERVER_NAME%/}
     command: >
       certonly --webroot --webroot-path=/var/www/certbot
       --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email --force-renewal

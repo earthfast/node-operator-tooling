@@ -11,14 +11,14 @@ This repository contains the necessary files to deploy a Content Node using Dock
 
 ## Quick Start
 
-#### 1. Clone this repository and run the install script:
+#### 1. Clone this repository and run the setup script:
 ```sh
 git clone https://github.com/earthfast/earthfast-node-setup-examples.git
 cd earthfast-node-setup-examples/content-node/docker-compose
 ./setup.sh
 ```
 
-You can use the `--staging` flag for sepolia staging instead
+You can use the `--staging` flag for sepolia staging instead.
 ```
 ./setup.sh --staging
 ```
@@ -27,21 +27,19 @@ You can use the `--staging` flag for sepolia staging instead
 
 If `SETUP_SSL` is set to 'true', the setup will automatically configure SSL using Let's Encrypt. Make sure the url from `SERVER_NAME` correctly pointed to your server's IP address before enabling this option.
 
-##### Edit the .env file
+##### Reset ENV vars
 ```sh
-vi .env
+./setup.sh
 ```
 
-Edit the `.env` file to configure your Content Node.
-
-##### Start the Content Node:
+#### 2. Start the Content Node:
 ```sh
 docker compose up -d
 ```
 
-You may need to log out and log back in for your user to be able to run docker compose without sudo permissions.
+You may need to log out and log back in for your user to be able to run `docker compose`.
 
-#### 2. Check the status of your services:
+#### 3. Check the status of your services:
 ```sh
 docker compose ps
 ```

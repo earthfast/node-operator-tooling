@@ -90,7 +90,7 @@ done
 
 # Node ID
 while true; do
-    read -p "Enter your node ID (e.g., 0xa80a8fcc...): " NODE_ID
+    read -p "Enter your node ID (e.g., 0xb10e2d52...): " NODE_ID
     NODE_ID=$(echo "$NODE_ID" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
     if validate_node_id "$NODE_ID"; then
         break
@@ -123,6 +123,8 @@ done
 
 # Create .env file
 cat > .env << EOF
+# https://docs.earthfast.com/node-operators/content-node-setup#step-5-configure-and-run-the-content-node-container
+
 # Server configuration
 SERVER_NAME=$SERVER_NAME
 NODE_ID=$NODE_ID
@@ -140,23 +142,14 @@ HOSTING_CACHE_DIR=/hosting_cache
 DATABASE_DIR=/db_data
 EOF
 
-echo ".env file created successfully!"
+echo -e "\n.env file created successfully!"
+echo -e "\nNote: You can manually edit these settings at any time by editing the .env file."
 
-# Launch content node
+# Provide appropriate next steps based on Docker group status
 if [ "$DOCKER_GROUP_ADDED" = true ]; then
-    echo "Docker group was just added to your user account."
+    echo -e "\nIMPORTANT: Docker group was just added to your user account."
     echo "Please log out and log back in for the changes to take effect."
-    echo "After logging back in, run 'docker compose up -d' to start the content node."
+    echo "After logging back in, you can start the content node with: docker compose up -d"
 else
-    read -p "Would you like to launch the content node now? (y/n): " launch_choice
-    case $launch_choice in
-        [Yy]*)
-            echo "Launching content node..."
-            sg docker -c "docker compose up -d"
-            echo "Content node launched successfully!"
-            ;;
-        *)
-            echo "Content node setup complete. You can launch it later using 'docker compose up -d'"
-            ;;
-    esac
+    echo -e "\nTo start the content node, use: docker compose up -d"
 fi

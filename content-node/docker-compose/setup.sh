@@ -10,6 +10,62 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+# Function to validate domain name format
+validate_domain() {
+    local domain=$1
+    if [[ ! $domain =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# Function to validate node ID format (hex string starting with 0x)
+validate_node_id() {
+    local node_id=$1
+    if [[ ! $node_id =~ ^0x[a-fA-F0-9]{64}$ ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# Function to validate email format
+validate_email() {
+    local email=$1
+    if [[ ! $email =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# Function to validate boolean input
+validate_boolean() {
+    local value=$1
+    if [[ ! $value =~ ^(true|false)$ ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# Function to get sanitized input with validation
+get_sanitized_input() {
+    local prompt=$1
+    local validation_function=$2
+    local error_message=$3
+    local value
+
+    while true; do
+        read -p "$prompt" value
+        value=$(echo "$value" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+        
+        if $validation_function "$value"; then
+            echo "$value"
+            return 0
+        else
+            echo "$error_message"
+        fi
+    done
+}
+
 # Function to set environment based on parameter
 set_environment() {
     if [ "$ENVIRONMENT" = "staging" ]; then
@@ -24,19 +80,35 @@ set_environment() {
 # Function to create .env file
 create_env_file() {
     echo "Configuring environment variables..."
-    # Collect required information
-    read -p "Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com): " server_name
-    read -p "Enter your node ID (e.g., 0xa80a8fcc...): " node_id
-    read -p "Do you want to set up SSL? (true/false): " setup_ssl
-    read -p "Enter your certbot email: " certbot_email
+    
+    # Collect and validate required information
+    SERVER_NAME=$(get_sanitized_input \
+        "Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com): " \
+        validate_domain \
+        "Invalid domain format. Please enter a valid domain name.")
+
+    NODE_ID=$(get_sanitized_input \
+        "Enter your node ID (e.g., 0xa80a8fcc...): " \
+        validate_node_id \
+        "Invalid node ID format. Must be a 64-character hex string starting with 0x.")
+
+    SETUP_SSL=$(get_sanitized_input \
+        "Do you want to set up SSL? (true/false): " \
+        validate_boolean \
+        "Please enter either 'true' or 'false'.")
+
+    CERTBOT_EMAIL=$(get_sanitized_input \
+        "Enter your certbot email: " \
+        validate_email \
+        "Invalid email format. Please enter a valid email address.")
 
     # Create .env file
     cat > .env << EOF
 # Server configuration
-SERVER_NAME=$server_name
-NODE_ID=$node_id
-SETUP_SSL=$setup_ssl
-CERTBOT_EMAIL=$certbot_email
+SERVER_NAME=$SERVER_NAME
+NODE_ID=$NODE_ID
+SETUP_SSL=$SETUP_SSL
+CERTBOT_EMAIL=$CERTBOT_EMAIL
 
 # Content node configuration
 RPC_URL=https://eth-sepolia.g.alchemy.com/v2/7xFp9qkRZTVC7CvUHODk7TgyemLtkzxt

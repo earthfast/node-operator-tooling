@@ -36,8 +36,6 @@ else
     echo "Docker Compose V2 is already installed."
 fi
 
-newgrp docker
-
 # Function to prompt for environment selection
 select_environment() {
     echo "Please select the environment:"
@@ -98,7 +96,7 @@ launch_content_node() {
     case $launch_choice in
         [Yy]*)
             echo "Launching content node..."
-            docker compose up -d
+            sudo docker compose up -d
             echo "Content node launched successfully!"
             ;;
         *)

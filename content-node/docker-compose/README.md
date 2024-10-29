@@ -15,7 +15,12 @@ This repository contains the necessary files to deploy a Content Node using Dock
 ```sh
 git clone https://github.com/earthfast/earthfast-node-setup-examples.git
 cd earthfast-node-setup-examples/content-node/docker-compose
-./install_dependencies.sh
+./setup.sh
+```
+
+You can use the `--staging` flag for sepolia staging instead
+```
+./setup.sh --staging
 ```
 
 ##### SSL Configuration

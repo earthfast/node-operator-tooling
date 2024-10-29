@@ -1,26 +1,24 @@
 #!/bin/bash
 
-# Function to prompt for environment selection
-select_environment() {
-    echo "Please select the environment:"
-    echo "1) Testnet Sepolia"
-    echo "2) Testnet Sepolia Staging"
-    read -p "Enter your choice (1-2): " env_choice
-
-    case $env_choice in
-        1)
-            echo "Selected: Testnet Sepolia"
-            CONTRACT_ADDRESS="0x172CEb125F6C86B7920fD391407aca0B5F416648"
-            ;;
-        2)
-            echo "Selected: Testnet Sepolia Staging"
-            CONTRACT_ADDRESS="0xD2362B76f79a0AbeF38E961a28E452683691890C"
-            ;;
-        *)
-            echo "Invalid choice. Defaulting to Testnet Sepolia"
-            CONTRACT_ADDRESS="0x172CEb125F6C86B7920fD391407aca0B5F416648"
-            ;;
+# Parse command line arguments
+ENVIRONMENT="testnet"  # Default environment
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --staging) ENVIRONMENT="staging";;
+        *) echo "Unknown parameter: $1"; exit 1;;
     esac
+    shift
+done
+
+# Function to set environment based on parameter
+set_environment() {
+    if [ "$ENVIRONMENT" = "staging" ]; then
+        echo "Selected: Testnet Sepolia Staging"
+        CONTRACT_ADDRESS="0xD2362B76f79a0AbeF38E961a28E452683691890C"
+    else
+        echo "Selected: Testnet Sepolia"
+        CONTRACT_ADDRESS="0x172CEb125F6C86B7920fD391407aca0B5F416648"
+    fi
 }
 
 # Function to create .env file
@@ -107,11 +105,11 @@ main() {
         echo "Docker Compose V2 is already installed."
     fi
 
-    # Run the configuration steps
-    select_environment
+    # Set environment and run the configuration steps
+    set_environment
     create_env_file
     launch_content_node
 }
 
 # Execute the main function with docker group permissions
-sg docker "$(declare -f select_environment create_env_file launch_content_node main); main"
+sg docker "$(declare -f set_environment create_env_file launch_content_node main ENVIRONMENT=\"$ENVIRONMENT\"); main"

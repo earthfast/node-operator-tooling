@@ -36,6 +36,8 @@ else
     echo "Docker Compose V2 is already installed."
 fi
 
+newgrp docker
+
 # Function to prompt for environment selection
 select_environment() {
     echo "Please select the environment:"
@@ -62,7 +64,6 @@ select_environment() {
 # Function to create .env file
 create_env_file() {
     echo "Configuring environment variables..."
-    
     # Collect required information
     read -p "Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com): " server_name
     read -p "Enter your node ID (e.g., 0xa80a8fcc...): " node_id
@@ -106,7 +107,7 @@ launch_content_node() {
     esac
 }
 
-newgrp docker
+# Execute the functions
 select_environment
 create_env_file
 launch_content_node

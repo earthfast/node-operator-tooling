@@ -96,7 +96,7 @@ launch_content_node() {
     case $launch_choice in
         [Yy]*)
             echo "Launching content node..."
-            sudo docker compose up -d
+            docker compose up -d
             echo "Content node launched successfully!"
             ;;
         *)
@@ -105,7 +105,9 @@ launch_content_node() {
     esac
 }
 
-# Execute the functions
-select_environment
-create_env_file
-launch_content_node
+# Execute the remaining commands in a new shell with the docker group
+sg docker -c "
+    select_environment
+    create_env_file
+    launch_content_node
+"

@@ -21,6 +21,8 @@ cd earthfast-node-setup-examples/content-node/docker-compose
 ./install_dependencies.sh
 ```
 
+You will need to log out and log back in for docker compose to have the necessary permissions for this user.
+
 #### 3. Setup the .env file
 ```sh
 cp .env.example .env
@@ -28,6 +30,8 @@ vi .env
 ```
 
 Edit the `.env` file to configure your Content Node.
+
+If you have not yet created a content node on chain, you can do that with the CLI --> https://github.com/earthfast/earthfast-cli
 
 ##### SSL Configuration
 

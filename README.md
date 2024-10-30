@@ -1,4 +1,4 @@
-# EarthFast Node Setup Examples
+# EarthFast Node Operator Tooling
 
 This repo provides examples for different ways to run nodes on EarthFast.
 
@@ -13,6 +13,6 @@ Examples [here](/content-node)
 
 
 ### Domain Nodes
-The domain node is the gateway for you application served using EarthFast by provididing the initial service worker to user browsers that subsequently loads website content from content nodes.
+The domain node is the gateway for you application served using EarthFast. It serves DNS requests for a given domain by returning the initial service worker to the user's browser that subsequently loads website content from content nodes.
 
 Examples [here](/domain-node)

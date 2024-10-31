@@ -33,14 +33,24 @@ install_docker() {
         log_error "Please install Docker Desktop for Windows from: https://www.docker.com/products/docker-desktop"
         exit 1
     else
-        log_info "Installing Docker using convenience script..."
-        curl -fsSL https://get.docker.com -o get-docker.sh
-        sudo sh get-docker.sh
-        sudo systemctl start docker
-        sudo systemctl enable docker
-        sudo usermod -aG docker $USER
-        rm get-docker.sh
-        log_success "Docker installed successfully!"
+        # Check if it's Amazon Linux
+        if grep -q "Amazon Linux" /etc/os-release; then
+            log_info "Installing Docker on Amazon Linux..."
+            sudo yum update -y
+            sudo yum install -y docker
+            sudo service docker start
+            sudo usermod -a -G docker $USER
+            sudo chkconfig docker on
+        else
+            # Original Docker installation for other Linux distributions
+            log_info "Installing Docker using convenience script..."
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            sudo systemctl start docker
+            sudo systemctl enable docker
+            sudo usermod -aG docker $USER
+            rm get-docker.sh
+        fi
     fi
 }
 

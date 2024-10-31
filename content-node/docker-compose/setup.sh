@@ -126,8 +126,8 @@ get_validated_input() {
     local type=$2
     local value
     while true; do
-        echo -e "${BLUE}$prompt${NC}"
-        read value
+        printf "${BLUE}%s${NC}: " "$prompt"
+        read -r value || return 1
         value=$(echo "$value" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
         if validate_input "$type" "$value"; then
             echo "$value"
@@ -139,13 +139,24 @@ get_validated_input() {
 }
 
 log_info "Please provide the following information:"
-echo
+printf "\n"
 
-# Get inputs
-SERVER_NAME=$(get_validated_input "Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com)" "domain")
-NODE_ID=$(get_validated_input "Enter your node ID (e.g., 0xb10e2d52...)" "node_id")
-SETUP_SSL=$(get_validated_input "Do you want to set up SSL? (true/false)" "boolean")
-CERTBOT_EMAIL=$(get_validated_input "Enter your certbot email" "email")
+# Get inputs - with explicit prompts
+printf "${BLUE}Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com)${NC}: "
+read -r SERVER_NAME
+SERVER_NAME=$(echo "$SERVER_NAME" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+
+printf "${BLUE}Enter your node ID (e.g., 0xb10e2d52...)${NC}: "
+read -r NODE_ID
+NODE_ID=$(echo "$NODE_ID" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+
+printf "${BLUE}Do you want to set up SSL? (true/false)${NC}: "
+read -r SETUP_SSL
+SETUP_SSL=$(echo "$SETUP_SSL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+
+printf "${BLUE}Enter your certbot email${NC}: "
+read -r CERTBOT_EMAIL
+CERTBOT_EMAIL=$(echo "$CERTBOT_EMAIL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 
 # Verify FQDN if SSL is enabled
 if [ "$SETUP_SSL" = "true" ]; then

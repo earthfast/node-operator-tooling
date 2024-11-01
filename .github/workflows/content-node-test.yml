@@ -28,9 +28,14 @@ jobs:
             --group-names content-node-test \
             --query 'SecurityGroups[0].GroupId' \
             --output text)
-
-          echo "Security Group ID: $SG_ID"  # Debug output
-
+  
+          # Verify security group rules
+          aws ec2 authorize-security-group-ingress \
+            --group-id $SG_ID \
+            --protocol tcp \
+            --port 22 \
+            --cidr 0.0.0.0/0 || true  # Don't fail if rule exists
+  
           # Create EC2 instance
           INSTANCE_ID=$(aws ec2 run-instances \
             --image-id ami-0c7217cdde317cfec \
@@ -39,32 +44,23 @@ jobs:
             --key-name ${{ secrets.AWS_KEY_NAME }} \
             --output text \
             --query 'Instances[0].InstanceId')
-
-          echo "Instance ID: $INSTANCE_ID"  # Debug output
-
-          # Wait for instance to be running
+  
+          echo "Waiting for instance to be running..."
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
-
+  
           # Get public IP
           PUBLIC_IP=$(aws ec2 describe-instances \
             --instance-ids $INSTANCE_ID \
             --query 'Reservations[0].Instances[0].PublicIpAddress' \
             --output text)
-
-          echo "Public IP: $PUBLIC_IP"  # Debug output
-
-          # Set outputs with explicit echo statements
+  
+          # Wait for instance status checks
+          echo "Waiting for instance status checks..."
+          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
+  
           echo "instance_id=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
           echo "public_ip=${PUBLIC_IP}" >> "$GITHUB_OUTPUT"
-
-          # Verify outputs were set
-          cat "$GITHUB_OUTPUT"
-
-      - name: Debug Outputs # Add this step for debugging
-        run: |
-          echo "Instance ID: ${{ steps.ec2.outputs.instance_id }}"
-          echo "Public IP: ${{ steps.ec2.outputs.public_ip }}"
-
+    
       - name: Deploy and configure content node
         env:
           PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
@@ -75,25 +71,30 @@ jobs:
             echo "Error: PUBLIC_IP is empty"
             exit 1
           fi
-
+  
           echo "Using Public IP: ${PUBLIC_IP}"
           
           # Save private key with proper OpenSSH format
           umask 077
           echo "$PRIVATE_KEY" > private_key.pem
           
-          # Debug key format and permissions
-          ls -l private_key.pem
-          head -n 1 private_key.pem
-          
-          # Debug SSH connection
-          ssh -v -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} echo "SSH test"
-          
-          # Wait for instance to be ready
-          sleep 30
-
+          # Wait longer for instance to be ready
+          echo "Waiting for SSH to be available..."
+          for i in {1..30}; do
+            if ssh -q -i private_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=5 ubuntu@${PUBLIC_IP} exit; then
+              echo "SSH connection successful"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Timeout waiting for SSH"
+              exit 1
+            fi
+            echo "Attempt $i: Waiting for SSH to be available..."
+            sleep 10
+          done
+  
           # First SSH session - setup
-          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${PUBLIC_IP} << EOF
+          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} << EOF
           git clone -b ${BRANCH} https://github.com/earthfast/earthfast-node-setup-examples.git
           cd earthfast-node-setup-examples/content-node/docker-compose
           ./setup.sh << ENDSETUP

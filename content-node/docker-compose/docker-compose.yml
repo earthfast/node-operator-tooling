@@ -11,28 +11,75 @@ services:
       - NGINX_HOST=${SERVER_NAME}
       - SETUP_SSL=${SETUP_SSL:-false}
     command: >
-      /bin/sh -c " echo 'Generating nginx configuration...';
+      /bin/sh -c "
+      echo 'Generating nginx configuration...';
+      
+      # Remove default config
+      rm -f /etc/nginx/conf.d/*.conf
+      
+      # Write base configuration
+      cat > /etc/nginx/conf.d/default.conf << 'EOF'
+      server_names_hash_bucket_size 128;
 
-      # Write base configuration echo 'server_names_hash_bucket_size 128;' > /etc/nginx/conf.d/default.conf; echo 'server {' >> /etc/nginx/conf.d/default.conf; echo '    listen 80;' >> /etc/nginx/conf.d/default.conf; echo '    listen [::]:80;' >> /etc/nginx/conf.d/default.conf; echo '    server_name $NGINX_HOST;' >> /etc/nginx/conf.d/default.conf; echo '    location /.well-known/acme-challenge/ {' >> /etc/nginx/conf.d/default.conf; echo '        root /var/www/certbot;' >> /etc/nginx/conf.d/default.conf; echo '    }' >> /etc/nginx/conf.d/default.conf; echo '    location / {' >> /etc/nginx/conf.d/default.conf; echo '        proxy_pass http://content-node:5000;' >> /etc/nginx/conf.d/default.conf; echo '        proxy_set_header X-Forwarded-For $remote_addr;' >> /etc/nginx/conf.d/default.conf; echo '        proxy_set_header Host $http_host;' >> /etc/nginx/conf.d/default.conf; echo '    }' >> /etc/nginx/conf.d/default.conf; echo '}' >> /etc/nginx/conf.d/default.conf;
+      server {
+          listen 80;
+          listen [::]:80;
+          server_name $NGINX_HOST;
+          
+          location /.well-known/acme-challenge/ {
+              root /var/www/certbot;
+          }
+      EOF
 
-      if [ '${SETUP_SSL}' = 'true' ] && [ -f /etc/letsencrypt/live/$${NGINX_HOST}/fullchain.pem ]; then
-        echo 'Adding SSL configuration...';
-        echo 'server {' >> /etc/nginx/conf.d/default.conf;
-        echo '    listen 443 ssl;' >> /etc/nginx/conf.d/default.conf;
-        echo '    listen [::]:443 ssl;' >> /etc/nginx/conf.d/default.conf;
-        echo '    server_name $NGINX_HOST;' >> /etc/nginx/conf.d/default.conf;
-        echo '    ssl_certificate /etc/letsencrypt/live/$NGINX_HOST/fullchain.pem;' >> /etc/nginx/conf.d/default.conf;
-        echo '    ssl_certificate_key /etc/letsencrypt/live/$NGINX_HOST/privkey.pem;' >> /etc/nginx/conf.d/default.conf;
-        echo '    location / {' >> /etc/nginx/conf.d/default.conf;
-        echo '        proxy_pass http://content-node:5000;' >> /etc/nginx/conf.d/default.conf;
-        echo '        proxy_set_header X-Forwarded-For $remote_addr;' >> /etc/nginx/conf.d/default.conf;
-        echo '        proxy_set_header Host $http_host;' >> /etc/nginx/conf.d/default.conf;
-        echo '    }' >> /etc/nginx/conf.d/default.conf;
-        echo '}' >> /etc/nginx/conf.d/default.conf;
-      fi;
+      if [ '${SETUP_SSL}' = 'true' ]; then
+        # Add SSL redirect for HTTP
+        cat >> /etc/nginx/conf.d/default.conf << 'EOF'
+          
+          location / {
+              return 301 https://$host$request_uri;
+          }
+      }
 
-      echo 'Final nginx configuration:'; cat /etc/nginx/conf.d/default.conf;
+      # Add SSL server block if certificates exist
+      if [ -f /etc/letsencrypt/live/$NGINX_HOST/fullchain.pem ]; then
+          server {
+              listen 443 ssl;
+              listen [::]:443 ssl;
+              server_name $NGINX_HOST;
 
+              ssl_certificate /etc/letsencrypt/live/$NGINX_HOST/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/$NGINX_HOST/privkey.pem;
+
+              location / {
+                  proxy_pass http://content-node:5000;
+                  proxy_set_header X-Forwarded-For $remote_addr;
+                  proxy_set_header Host $http_host;
+              }
+          }
+      EOF
+      else
+          echo 'SSL certificates not found, using HTTP only';
+      fi
+      else
+        # Add HTTP proxy if SSL is not enabled
+        cat >> /etc/nginx/conf.d/default.conf << 'EOF'
+          
+          location / {
+              proxy_pass http://content-node:5000;
+              proxy_set_header X-Forwarded-For $remote_addr;
+              proxy_set_header Host $http_host;
+          }
+      EOF
+      fi
+
+      # Close the first server block
+      cat >> /etc/nginx/conf.d/default.conf << 'EOF'
+      }
+      EOF
+
+      echo 'Final nginx configuration:';
+      cat /etc/nginx/conf.d/default.conf;
+      
       nginx -g 'daemon off;'"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"

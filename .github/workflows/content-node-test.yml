@@ -59,6 +59,11 @@ jobs:
           PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
           PUBLIC_IP: ${{ steps.ec2.outputs.public_ip }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
+          SETUP_INPUTS: |
+            ${PUBLIC_IP}
+            0x1234567890123456789012345678901234567890123456789012345678901234
+            false
+            test@earthfast.com
         run: |
           if [ -z "$PUBLIC_IP" ]; then
             echo "Error: PUBLIC_IP is empty"
@@ -67,27 +72,24 @@ jobs:
   
           echo "Using Public IP: ${PUBLIC_IP}"
           
-          # Save private key with proper OpenSSH format
+          # Save private key
           umask 077
           echo "$PRIVATE_KEY" > private_key.pem
-  
+          
           # First SSH session - setup
-          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} << EOF
-          git clone -b ${BRANCH} https://github.com/earthfast/earthfast-node-setup-examples.git
-          cd earthfast-node-setup-examples/content-node/docker-compose
-          ./setup.sh << ENDSETUP
-          ${PUBLIC_IP}
-          0x1234567890123456789012345678901234567890123456789012345678901234
-          false
-          test@earthfast.com
-          ENDSETUP
-          EOF
-            
-          # Second SSH session - start services after logging out/in
-          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} << EOF
-          cd earthfast-node-setup-examples/content-node/docker-compose
-          docker compose up -d
-          EOF
+          echo "Running setup script..."
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} \
+            "git clone -b ${BRANCH} https://github.com/earthfast/earthfast-node-setup-examples.git && \
+              cd earthfast-node-setup-examples/content-node/docker-compose && \
+              echo \"$SETUP_INPUTS\" | ./setup.sh"
+          
+          echo "Setup completed, waiting 10 seconds before starting services..."
+          sleep 10
+  
+          # Second SSH session - new login for Docker permissions
+          echo "Starting content node..."
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} \
+            "cd earthfast-node-setup-examples/content-node/docker-compose && docker compose up -d"
 
       - name: Test /statusz endpoint
         run: |

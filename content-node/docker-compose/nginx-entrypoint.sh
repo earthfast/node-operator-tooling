@@ -1,8 +1,15 @@
 #!/bin/sh
 set -e
 
+# Validate SERVER_NAME
+if [ -z "$SERVER_NAME" ]; then
+    echo "Error: SERVER_NAME environment variable is required"
+    exit 1
+fi
+
 # Clean server name
 CLEAN_NAME=$(echo "$SERVER_NAME" | sed 's/\/\+$//')
+echo "Using server name: $CLEAN_NAME"
 
 # Create nginx config
 cat > /etc/nginx/conf.d/default.conf << EOF
@@ -57,5 +64,3 @@ fi
 
 echo "Generated nginx configuration:"
 cat /etc/nginx/conf.d/default.conf
-
-exec nginx -g 'daemon off;'

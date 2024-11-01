@@ -29,13 +29,6 @@ jobs:
             --query 'SecurityGroups[0].GroupId' \
             --output text)
   
-          # Verify security group rules
-          aws ec2 authorize-security-group-ingress \
-            --group-id $SG_ID \
-            --protocol tcp \
-            --port 22 \
-            --cidr 0.0.0.0/0 || true  # Don't fail if rule exists
-  
           # Create EC2 instance
           INSTANCE_ID=$(aws ec2 run-instances \
             --image-id ami-0c7217cdde317cfec \
@@ -77,21 +70,6 @@ jobs:
           # Save private key with proper OpenSSH format
           umask 077
           echo "$PRIVATE_KEY" > private_key.pem
-          
-          # Wait longer for instance to be ready
-          echo "Waiting for SSH to be available..."
-          for i in {1..30}; do
-            if ssh -q -i private_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=5 ubuntu@${PUBLIC_IP} exit; then
-              echo "SSH connection successful"
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "Timeout waiting for SSH"
-              exit 1
-            fi
-            echo "Attempt $i: Waiting for SSH to be available..."
-            sleep 10
-          done
   
           # First SSH session - setup
           ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} << EOF
@@ -106,7 +84,7 @@ jobs:
           EOF
             
           # Second SSH session - start services after logging out/in
-          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${PUBLIC_IP} << 'EOF'
+          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} << EOF
           cd earthfast-node-setup-examples/content-node/docker-compose
           docker compose up -d
           EOF

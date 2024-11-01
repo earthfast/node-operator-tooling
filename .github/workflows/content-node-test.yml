@@ -1,0 +1,119 @@
+name: Content Node Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Create EC2 instance
+        id: ec2
+        run: |
+          # Get existing security group ID
+          SG_ID=$(aws ec2 describe-security-groups \
+            --group-names content-node-test \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text)
+
+          # Create EC2 instance
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id ami-0c7217cdde317cfec \
+            --instance-type t2.medium \
+            --security-group-ids $SG_ID \
+            --key-name ${{ secrets.AWS_KEY_NAME }} \
+            --output text \
+            --query 'Instances[0].InstanceId')
+
+          # Wait for instance status checks
+          echo "Waiting for instance status checks..."
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
+
+          # Get public IP
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids $INSTANCE_ID \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+
+          echo "instance_id=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
+          echo "public_ip=${PUBLIC_IP}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy and configure content node
+        env:
+          PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          PUBLIC_IP: ${{ steps.ec2.outputs.public_ip }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          SETUP_INPUTS: |
+            ${{ steps.ec2.outputs.public_ip }}
+            0x0f2ada1f2dbae48ae468fe0cdb7bcda7d0cffee8545442e682273ba01a6203a7
+            false
+            test@earthfast.com
+        run: |
+          if [ -z "$PUBLIC_IP" ]; then
+            echo "Error: PUBLIC_IP is empty"
+            exit 1
+          fi
+            
+          # Save private key
+          umask 077
+          echo "$PRIVATE_KEY" > private_key.pem
+
+          # First SSH session - setup
+          echo "Running setup script..."
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} \
+            "git clone -b ${BRANCH} https://github.com/earthfast/earthfast-node-setup-examples.git && \
+              cd earthfast-node-setup-examples/content-node/docker-compose && \
+              echo \"$SETUP_INPUTS\" | ./setup.sh"
+
+          # Second SSH session - new login for Docker permissions
+          echo "Starting content node..."
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} \
+            "cd earthfast-node-setup-examples/content-node/docker-compose && docker compose up -d"
+
+      - name: Test /statusz endpoint
+        env:
+          PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          PUBLIC_IP: ${{ steps.ec2.outputs.public_ip }}
+        run: |
+          # SSH in and test locally
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} \
+            "for i in {1..6}; do \
+              response=\$(curl -s -o /dev/null -w '%{http_code}' http://localhost/statusz); \
+              if [ \"\$response\" = \"200\" ]; then \
+                echo \"Statusz check passed\"; \
+                exit 0; \
+              fi; \
+              echo \"Attempt \$i: Status code \$response, waiting 10 seconds...\"; \
+              sleep 10; \
+            done; \
+            echo \"Statusz check failed after all attempts\"; \
+            docker compose -f earthfast-node-setup-examples/content-node/docker-compose/docker-compose.yml logs; \
+            exit 1"
+
+      - name: Cleanup
+        if: always()
+        env:
+          INSTANCE_ID: ${{ steps.ec2.outputs.instance_id }}
+        run: |
+          if [ -z "$INSTANCE_ID" ]; then
+            echo "Error: INSTANCE_ID is empty"
+            exit 1
+          fi
+
+          echo "Terminating instance: ${INSTANCE_ID}"
+          aws ec2 terminate-instances --instance-ids ${INSTANCE_ID}
+          aws ec2 wait instance-terminated --instance-ids ${INSTANCE_ID}

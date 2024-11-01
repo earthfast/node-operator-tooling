@@ -1,155 +1,193 @@
 #!/bin/bash
 
+# Color definitions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Logging functions
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Function to install Docker using official method
+install_docker() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        log_error "Please install Docker Desktop for Mac from: https://www.docker.com/products/docker-desktop"
+        exit 1
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        log_error "Please install Docker Desktop for Windows from: https://www.docker.com/products/docker-desktop"
+        exit 1
+    else
+        # Check if it's Amazon Linux
+        if grep -q "Amazon Linux" /etc/os-release; then
+            log_info "Installing Docker on Amazon Linux..."
+            sudo yum update -y
+            sudo yum install -y docker
+            sudo service docker start
+            sudo usermod -a -G docker $USER
+            sudo chkconfig docker on
+        else
+            # Original Docker installation for other Linux distributions
+            log_info "Installing Docker using convenience script..."
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            sudo systemctl start docker
+            sudo systemctl enable docker
+            sudo usermod -aG docker $USER
+            rm get-docker.sh
+        fi
+    fi
+}
+
+# Function to verify FQDN points to VM IP
+verify_fqdn() {
+    local fqdn=$1
+    local vm_ip=$(curl -s ifconfig.me)
+    local dns_ip=$(dig +short $fqdn)
+
+    if [ "$vm_ip" = "$dns_ip" ]; then
+        log_success "FQDN verification successful!"
+        return 0
+    else
+        log_warning "$fqdn does not point to this VM's IP ($vm_ip)"
+        log_warning "DNS currently points to: $dns_ip"
+        read -p "Continue anyway? (y/n): " continue
+        [[ $continue == "y" ]] && return 0 || return 1
+    fi
+}
+
 # Parse command line arguments
-ENVIRONMENT="testnet"  # Default environment
+ENVIRONMENT="testnet"
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --staging) ENVIRONMENT="staging";;
-        *) echo "Unknown parameter: $1"; exit 1;;
+    --staging) ENVIRONMENT="staging" ;;
+    *)
+        log_error "Unknown parameter: $1"
+        exit 1
+        ;;
     esac
     shift
 done
 
-# Update package list
-sudo apt update
+log_info "Starting setup process..."
 
-# Install Docker if not already installed
-if ! command -v docker &> /dev/null; then
-    echo "Installing Docker..."
-    sudo apt install -y docker.io
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sudo usermod -aG docker $USER
-    echo "Docker installed successfully."
-    DOCKER_GROUP_ADDED=true
+# Check and install Docker if needed
+if ! command -v docker &>/dev/null; then
+    log_info "Docker not found. Installing..."
+    install_docker
 else
-    echo "Docker is already installed."
+    log_success "Docker is already installed"
 fi
 
-# Set up Docker to run without sudo
-if ! groups $USER | grep -q "\bdocker\b"; then
-    sudo usermod -aG docker $USER
-    echo "Added $USER to the docker group."
-    DOCKER_GROUP_ADDED=true
-else
-    echo "User $USER is already in the docker group."
-fi
-
-# Install Docker Compose V2 if not already installed
-if ! docker compose version &> /dev/null; then
-    echo "Installing Docker Compose V2..."
+# Install Docker Compose V2 if needed
+if ! docker compose version &>/dev/null; then
+    log_info "Installing Docker Compose V2..."
     DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
     mkdir -p $DOCKER_CONFIG/cli-plugins
     COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d '"' -f 4)
     sudo curl -SL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o $DOCKER_CONFIG/cli-plugins/docker-compose
     sudo chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
-    echo "Docker Compose V2 installed successfully."
+    log_success "Docker Compose V2 installed successfully!"
 else
-    echo "Docker Compose V2 is already installed."
+    log_success "Docker Compose V2 is already installed"
 fi
 
-# Set environment
-if [ "$ENVIRONMENT" = "staging" ]; then
-    echo "Selected: Testnet Sepolia Staging"
-    CONTRACT_ADDRESS="0xD2362B76f79a0AbeF38E961a28E452683691890C"
-else
-    echo "Selected: Testnet Sepolia"
-    CONTRACT_ADDRESS="0x172CEb125F6C86B7920fD391407aca0B5F416648"
-fi
+# Set contract address based on environment
+CONTRACT_ADDRESS=$([ "$ENVIRONMENT" = "staging" ] && echo "0xD2362B76f79a0AbeF38E961a28E452683691890C" || echo "0x172CEb125F6C86B7920fD391407aca0B5F416648")
+log_info "Using contract address: $CONTRACT_ADDRESS"
 
 # Validation functions
-validate_domain() {
-    [[ $1 =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]
+validate_input() {
+    local type=$1
+    local value=$2
+    case $type in
+    domain) [[ $value =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] ;;
+    node_id) [[ $value =~ ^0x[a-fA-F0-9]{64}$ ]] ;;
+    email) [[ $value =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] ;;
+    boolean) [[ $value =~ ^(true|false)$ ]] ;;
+    esac
 }
 
-validate_node_id() {
-    [[ $1 =~ ^0x[a-fA-F0-9]{64}$ ]]
+# Get and validate inputs with a generic function
+get_validated_input() {
+    local prompt=$1
+    local type=$2
+    local value
+    while true; do
+        printf "${BLUE}%s${NC}: " "$prompt"
+        read -r value || return 1
+        value=$(echo "$value" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+        if validate_input "$type" "$value"; then
+            echo "$value"
+            break
+        else
+            log_error "Invalid input format. Please try again."
+        fi
+    done
 }
 
-validate_email() {
-    [[ $1 =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]
-}
+log_info "Please provide the following information:"
+printf "\n"
 
-validate_boolean() {
-    [[ $1 =~ ^(true|false)$ ]]
-}
+# Get inputs - with explicit prompts
+printf "${BLUE}Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com)${NC}: "
+read -r SERVER_NAME
+SERVER_NAME=$(echo "$SERVER_NAME" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 
-# Get and validate inputs
-echo "Configuring environment variables..."
+printf "${BLUE}Enter your node ID (e.g., 0xb10e2d52...)${NC}: "
+read -r NODE_ID
+NODE_ID=$(echo "$NODE_ID" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 
-# Server Name
-while true; do
-    read -p "Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com): " SERVER_NAME
-    SERVER_NAME=$(echo "$SERVER_NAME" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-    if validate_domain "$SERVER_NAME"; then
-        break
-    else
-        echo "Invalid domain format. Please enter a valid domain name."
+printf "${BLUE}Do you want to set up SSL? (true/false)${NC}: "
+read -r SETUP_SSL
+SETUP_SSL=$(echo "$SETUP_SSL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+
+printf "${BLUE}Enter your certbot email${NC}: "
+read -r CERTBOT_EMAIL
+CERTBOT_EMAIL=$(echo "$CERTBOT_EMAIL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+
+# Verify FQDN if SSL is enabled
+if [ "$SETUP_SSL" = "true" ]; then
+    log_info "Verifying FQDN..."
+    if ! verify_fqdn "$SERVER_NAME"; then
+        log_error "FQDN verification failed. Exiting..."
+        exit 1
     fi
-done
-
-# Node ID
-while true; do
-    read -p "Enter your node ID (e.g., 0xb10e2d52...): " NODE_ID
-    NODE_ID=$(echo "$NODE_ID" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-    if validate_node_id "$NODE_ID"; then
-        break
-    else
-        echo "Invalid node ID format. Must be a 64-character hex string starting with 0x."
-    fi
-done
-
-# SSL Setup
-while true; do
-    read -p "Do you want to set up SSL? (true/false): " SETUP_SSL
-    SETUP_SSL=$(echo "$SETUP_SSL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-    if validate_boolean "$SETUP_SSL"; then
-        break
-    else
-        echo "Please enter either 'true' or 'false'."
-    fi
-done
-
-# Certbot Email
-while true; do
-    read -p "Enter your certbot email: " CERTBOT_EMAIL
-    CERTBOT_EMAIL=$(echo "$CERTBOT_EMAIL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-    if validate_email "$CERTBOT_EMAIL"; then
-        break
-    else
-        echo "Invalid email format. Please enter a valid email address."
-    fi
-done
+fi
 
 # Create .env file
-cat > .env << EOF
-# https://docs.earthfast.com/node-operators/content-node-setup#step-5-configure-and-run-the-content-node-container
-
-# Server configuration
+log_info "Creating .env file..."
+cat >.env <<EOF
 SERVER_NAME=$SERVER_NAME
 NODE_ID=$NODE_ID
 SETUP_SSL=$SETUP_SSL
 CERTBOT_EMAIL=$CERTBOT_EMAIL
-
-# Content node configuration
 RPC_URL=https://eth-sepolia.g.alchemy.com/v2/7xFp9qkRZTVC7CvUHODk7TgyemLtkzxt
-
-# Contract address for EarthFast Registry
 CONTRACT_ADDRESS=$CONTRACT_ADDRESS
-
-# Data directories
 HOSTING_CACHE_DIR=/hosting_cache
 DATABASE_DIR=/db_data
 EOF
 
-echo -e "\n.env file created successfully!"
-echo -e "\nNote: You can manually edit these settings at any time by editing the .env file."
+log_success ".env file created successfully!"
+echo
+log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
 
-# Provide appropriate next steps based on Docker group status
-if [ "$DOCKER_GROUP_ADDED" = true ]; then
-    echo -e "\nIMPORTANT: Docker group was just added to your user account."
-    echo "Please log out and log back in for the changes to take effect."
-    echo "After logging back in, you can start the content node with: docker compose up -d"
-else
-    echo -e "\nTo start the content node, use: docker compose up -d"
+# Remind to restart if docker group was added
+if groups $USER | grep -q "\bdocker\b"; then
+    log_warning "Please log out and log back in for Docker group changes to take effect."
 fi

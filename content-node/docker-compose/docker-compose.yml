@@ -14,31 +14,67 @@ services:
       /bin/sh -c "
       echo '=== Starting nginx setup ===';
       
-      # Clean SERVER_NAME
-      CLEAN_SERVER_NAME=\$(echo \"${SERVER_NAME}\" | sed 's/\\/*$//');
+      # Clean SERVER_NAME and export it
+      export CLEAN_SERVER_NAME=\$(echo \"${SERVER_NAME}\" | sed 's/\\/*$//');
       echo \"Using server name: \$CLEAN_SERVER_NAME\";
       
       echo 'Removing default config...';
       rm -f /etc/nginx/conf.d/*.conf;
       
       echo 'Writing new configuration...';
-      # Write base configuration with escaped nginx variables
-      cat > /etc/nginx/conf.d/default.conf << 'EOF'
+      # Create base HTTP config
+      cat > /etc/nginx/templates/default.conf.template << 'EOF'
       server_names_hash_bucket_size 128;
 
       server {
           listen 80;
           listen [::]:80;
-      EOF
-
-      # Inject the server name
-      echo "          server_name \$CLEAN_SERVER_NAME;" >> /etc/nginx/conf.d/default.conf
-
-      # Continue with the rest of the config
-      cat >> /etc/nginx/conf.d/default.conf << 'EOF'
+          server_name ${CLEAN_SERVER_NAME};
+          
           location /.well-known/acme-challenge/ {
               root /var/www/certbot;
           }
+      EOF
+
+      if [ '${SETUP_SSL}' = 'true' ]; then
+        # Add SSL redirect
+        cat >> /etc/nginx/templates/default.conf.template << 'EOF'
+          
+          location / {
+              return 301 https://$host$request_uri;
+          }
+      }
+
+      # Close HTTP server block
+      cat >> /etc/nginx/templates/default.conf.template << 'EOF'
+      }
+      EOF
+
+        # Add HTTPS server if certs exist
+        if [ -f /etc/letsencrypt/live/\$CLEAN_SERVER_NAME/fullchain.pem ]; then
+          cat >> /etc/nginx/templates/default.conf.template << 'EOF'
+
+      server {
+          listen 443 ssl;
+          listen [::]:443 ssl;
+          server_name ${CLEAN_SERVER_NAME};
+
+          ssl_certificate /etc/letsencrypt/live/${CLEAN_SERVER_NAME}/fullchain.pem;
+          ssl_certificate_key /etc/letsencrypt/live/${CLEAN_SERVER_NAME}/privkey.pem;
+
+          location / {
+              proxy_pass http://content-node:5000;
+              proxy_set_header X-Forwarded-For $remote_addr;
+              proxy_set_header Host $http_host;
+          }
+      }
+      EOF
+        else
+          echo 'SSL certificates not found, using HTTP only';
+        fi
+      else
+        # Add HTTP proxy if SSL is not enabled
+        cat >> /etc/nginx/templates/default.conf.template << 'EOF'
           
           location / {
               proxy_pass http://content-node:5000;
@@ -47,6 +83,10 @@ services:
           }
       }
       EOF
+      fi
+
+      echo '=== Processing template ===';
+      envsubst '${CLEAN_SERVER_NAME}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf;
 
       echo '=== Generated nginx configuration ===';
       cat /etc/nginx/conf.d/default.conf;

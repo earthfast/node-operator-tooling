@@ -42,15 +42,15 @@ jobs:
         env:
           PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
           PUBLIC_IP: ${{ steps.ec2.outputs.public_ip }}
-          BRANCH: ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           # Save private key
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
-          
+
           # Wait for instance to be ready
           sleep 30
-          
+
           # First SSH session - setup
           ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${PUBLIC_IP} << 'EOF'
           git clone -b ${BRANCH} https://github.com/earthfast/earthfast-node-setup-examples.git
@@ -88,7 +88,9 @@ jobs:
 
       - name: Cleanup
         if: always()
+        env:
+          INSTANCE_ID: ${{ steps.ec2.outputs.instance_id }}
         run: |
           # Terminate EC2 instance
-          aws ec2 terminate-instances --instance-ids ${{ steps.ec2.outputs.instance_id }}
-          aws ec2 wait instance-terminated --instance-ids ${{ steps.ec2.outputs.instance_id }}
+          aws ec2 terminate-instances --instance-ids ${INSTANCE_ID}
+          aws ec2 wait instance-terminated --instance-ids ${INSTANCE_ID}

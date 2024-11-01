@@ -59,7 +59,7 @@ verify_fqdn() {
     local fqdn=$1
     local vm_ip=$(curl -s ifconfig.me)
     local dns_ip=$(dig +short $fqdn)
-    
+
     if [ "$vm_ip" = "$dns_ip" ]; then
         log_success "FQDN verification successful!"
         return 0
@@ -75,8 +75,11 @@ verify_fqdn() {
 ENVIRONMENT="testnet"
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --staging) ENVIRONMENT="staging";;
-        *) log_error "Unknown parameter: $1"; exit 1;;
+    --staging) ENVIRONMENT="staging" ;;
+    *)
+        log_error "Unknown parameter: $1"
+        exit 1
+        ;;
     esac
     shift
 done
@@ -84,7 +87,7 @@ done
 log_info "Starting setup process..."
 
 # Check and install Docker if needed
-if ! command -v docker &> /dev/null; then
+if ! command -v docker &>/dev/null; then
     log_info "Docker not found. Installing..."
     install_docker
 else
@@ -92,7 +95,7 @@ else
 fi
 
 # Install Docker Compose V2 if needed
-if ! docker compose version &> /dev/null; then
+if ! docker compose version &>/dev/null; then
     log_info "Installing Docker Compose V2..."
     DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
     mkdir -p $DOCKER_CONFIG/cli-plugins
@@ -113,10 +116,10 @@ validate_input() {
     local type=$1
     local value=$2
     case $type in
-        domain) [[ $value =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]];;
-        node_id) [[ $value =~ ^0x[a-fA-F0-9]{64}$ ]];;
-        email) [[ $value =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]];;
-        boolean) [[ $value =~ ^(true|false)$ ]];;
+    domain) [[ $value =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] ;;
+    node_id) [[ $value =~ ^0x[a-fA-F0-9]{64}$ ]] ;;
+    email) [[ $value =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] ;;
+    boolean) [[ $value =~ ^(true|false)$ ]] ;;
     esac
 }
 
@@ -169,7 +172,7 @@ fi
 
 # Create .env file
 log_info "Creating .env file..."
-cat > .env << EOF
+cat >.env <<EOF
 SERVER_NAME=$SERVER_NAME
 NODE_ID=$NODE_ID
 SETUP_SSL=$SETUP_SSL

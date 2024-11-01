@@ -1,0 +1,95 @@
+name: Content Node Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Create EC2 instance
+        id: ec2
+        run: |
+          # Get existing security group ID
+          SG_ID=$(aws ec2 describe-security-groups \
+          --group-names content-node-test \
+          --query 'SecurityGroups[0].GroupId' \
+          --output text)
+
+          # Create EC2 instance
+          INSTANCE_ID=$(aws ec2 run-instances \
+          --image-id ami-0c7217cdde317cfec \
+          --instance-type t2.medium \
+          --security-group-ids $SG_ID \
+          --key-name ${{ secrets.AWS_KEY_NAME }} \
+          --output text \
+          --query 'Instances[0].InstanceId')
+
+      - name: Deploy and configure content node
+        env:
+          PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+        run: |
+          # Save private key
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+
+          # Wait for instance to be ready
+          sleep 30
+
+          # First SSH session - setup
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${{ steps.ec2.outputs.public_ip }} << "ENDSSH"
+            # Clone repository
+            git clone https://github.com/earthfast/earthfast-node-setup-examples.git
+            cd earthfast-node-setup-examples/content-node/docker-compose
+
+            # Run setup script
+            ./setup.sh << "ENDSETUP"
+            ${{ steps.ec2.outputs.public_ip }}
+            0x1234567890123456789012345678901234567890123456789012345678901234
+            false
+            test@earthfast.com
+            ENDSETUP
+          ENDSSH
+
+          # Second SSH session - start services after logging out/in
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${{ steps.ec2.outputs.public_ip }} << "ENDSSH"
+            cd earthfast-node-setup-examples/content-node/docker-compose
+            docker compose up -d
+          ENDSSH
+
+      - name: Test /statusz endpoint
+        run: |
+          # Wait for service to be ready
+          sleep 30
+
+          for i in {1..6}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ steps.ec2.outputs.public_ip }}/statusz)
+            if [ "$response" = "200" ]; then
+              echo "Statusz check passed"
+              exit 0
+            fi
+            echo "Attempt $i: Status code $response, waiting 10 seconds..."
+            sleep 10
+          done
+          echo "Statusz check failed after all attempts"
+          exit 1
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Terminate EC2 instance
+          aws ec2 terminate-instances --instance-ids ${{ steps.ec2.outputs.instance_id }}
+          aws ec2 wait instance-terminated --instance-ids ${{ steps.ec2.outputs.instance_id }}

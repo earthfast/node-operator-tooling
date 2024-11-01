@@ -58,7 +58,7 @@ jobs:
           PUBLIC_IP: ${{ steps.ec2.outputs.public_ip }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
           SETUP_INPUTS: |
-            ${PUBLIC_IP}
+            ${{ steps.ec2.outputs.public_ip }}
             0x1234567890123456789012345678901234567890123456789012345678901234
             false
             test@earthfast.com

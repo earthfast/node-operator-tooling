@@ -11,8 +11,6 @@ services:
     environment:
       - SERVER_NAME=${SERVER_NAME}
       - SETUP_SSL=${SETUP_SSL:-false}
-    depends_on:
-      - content-node
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped

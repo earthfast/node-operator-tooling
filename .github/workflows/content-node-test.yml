@@ -25,18 +25,45 @@ jobs:
         run: |
           # Get existing security group ID
           SG_ID=$(aws ec2 describe-security-groups \
-          --group-names content-node-test \
-          --query 'SecurityGroups[0].GroupId' \
-          --output text)
+            --group-names content-node-test \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text)
+
+          echo "Security Group ID: $SG_ID"  # Debug output
 
           # Create EC2 instance
           INSTANCE_ID=$(aws ec2 run-instances \
-          --image-id ami-0c7217cdde317cfec \
-          --instance-type t2.medium \
-          --security-group-ids $SG_ID \
-          --key-name ${{ secrets.AWS_KEY_NAME }} \
-          --output text \
-          --query 'Instances[0].InstanceId')
+            --image-id ami-0c7217cdde317cfec \
+            --instance-type t2.medium \
+            --security-group-ids $SG_ID \
+            --key-name ${{ secrets.AWS_KEY_NAME }} \
+            --output text \
+            --query 'Instances[0].InstanceId')
+
+          echo "Instance ID: $INSTANCE_ID"  # Debug output
+
+          # Wait for instance to be running
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+
+          # Get public IP
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids $INSTANCE_ID \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+
+          echo "Public IP: $PUBLIC_IP"  # Debug output
+
+          # Set outputs with explicit echo statements
+          echo "instance_id=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
+          echo "public_ip=${PUBLIC_IP}" >> "$GITHUB_OUTPUT"
+
+          # Verify outputs were set
+          cat "$GITHUB_OUTPUT"
+
+      - name: Debug Outputs # Add this step for debugging
+        run: |
+          echo "Instance ID: ${{ steps.ec2.outputs.instance_id }}"
+          echo "Public IP: ${{ steps.ec2.outputs.public_ip }}"
 
       - name: Deploy and configure content node
         env:
@@ -44,6 +71,13 @@ jobs:
           PUBLIC_IP: ${{ steps.ec2.outputs.public_ip }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
+          if [ -z "$PUBLIC_IP" ]; then
+            echo "Error: PUBLIC_IP is empty"
+            exit 1
+          fi
+
+          echo "Using Public IP: ${PUBLIC_IP}"
+
           # Save private key
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
@@ -52,7 +86,7 @@ jobs:
           sleep 30
 
           # First SSH session - setup
-          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${PUBLIC_IP} << 'EOF'
+          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${PUBLIC_IP} << EOF
           git clone -b ${BRANCH} https://github.com/earthfast/earthfast-node-setup-examples.git
           cd earthfast-node-setup-examples/content-node/docker-compose
           ./setup.sh << ENDSETUP
@@ -91,6 +125,11 @@ jobs:
         env:
           INSTANCE_ID: ${{ steps.ec2.outputs.instance_id }}
         run: |
-          # Terminate EC2 instance
+          if [ -z "$INSTANCE_ID" ]; then
+            echo "Error: INSTANCE_ID is empty"
+            exit 1
+          fi
+
+          echo "Terminating instance: ${INSTANCE_ID}"
           aws ec2 terminate-instances --instance-ids ${INSTANCE_ID}
           aws ec2 wait instance-terminated --instance-ids ${INSTANCE_ID}

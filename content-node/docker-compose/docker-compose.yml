@@ -14,9 +14,10 @@ services:
       - SETUP_SSL=${SETUP_SSL:-false}
     command: >
       /bin/sh -c "
-      SERVER_NAME=$${SERVER_NAME%/};
+      CLEAN_SERVER_NAME=\$${SERVER_NAME%/};
+      export SERVER_NAME=\$CLEAN_SERVER_NAME;
       if [ '${SETUP_SSL}' = 'true' ]; then
-        if [ ! -f /etc/letsencrypt/live/$${SERVER_NAME}/fullchain.pem ]; then
+        if [ ! -f /etc/letsencrypt/live/\$${SERVER_NAME}/fullchain.pem ]; then
           echo 'SSL certificates not found, starting with HTTP configuration';
           envsubst '$$SERVER_NAME' < /etc/nginx/templates/http.conf.template > /etc/nginx/conf.d/default.conf;
         else
@@ -24,6 +25,7 @@ services:
           envsubst '$$SERVER_NAME' < /etc/nginx/templates/https.conf.template > /etc/nginx/conf.d/default.conf;
         fi
       else
+        echo 'Setting up HTTP configuration for '\$${SERVER_NAME};
         envsubst '$$SERVER_NAME' < /etc/nginx/templates/http.conf.template > /etc/nginx/conf.d/default.conf;
       fi &&
       nginx -g 'daemon off;'"

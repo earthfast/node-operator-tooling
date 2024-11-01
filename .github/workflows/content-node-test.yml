@@ -41,34 +41,33 @@ jobs:
       - name: Deploy and configure content node
         env:
           PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          PUBLIC_IP: ${{ steps.ec2.outputs.public_ip }}
+          BRANCH: ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
         run: |
           # Save private key
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
-
+          
           # Wait for instance to be ready
           sleep 30
-
+          
           # First SSH session - setup
-          ssh -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${{ steps.ec2.outputs.public_ip }} << "ENDSSH"
-            # Clone repository
-            git clone https://github.com/earthfast/earthfast-node-setup-examples.git
-            cd earthfast-node-setup-examples/content-node/docker-compose
-
-            # Run setup script
-            ./setup.sh << "ENDSETUP"
-            ${{ steps.ec2.outputs.public_ip }}
-            0x1234567890123456789012345678901234567890123456789012345678901234
-            false
-            test@earthfast.com
-            ENDSETUP
-          ENDSSH
-
+          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${PUBLIC_IP} << 'EOF'
+          git clone -b ${BRANCH} https://github.com/earthfast/earthfast-node-setup-examples.git
+          cd earthfast-node-setup-examples/content-node/docker-compose
+          ./setup.sh << ENDSETUP
+          ${PUBLIC_IP}
+          0x1234567890123456789012345678901234567890123456789012345678901234
+          false
+          test@earthfast.com
+          ENDSETUP
+          EOF
+            
           # Second SSH session - start services after logging out/in
-          ssh -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${{ steps.ec2.outputs.public_ip }} << "ENDSSH"
-            cd earthfast-node-setup-examples/content-node/docker-compose
-            docker compose up -d
-          ENDSSH
+          ssh -tt -i private_key.pem -o StrictHostKeyChecking=no ec2-user@${PUBLIC_IP} << 'EOF'
+          cd earthfast-node-setup-examples/content-node/docker-compose
+          docker compose up -d
+          EOF
 
       - name: Test /statusz endpoint
         run: |

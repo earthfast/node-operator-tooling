@@ -77,11 +77,18 @@ jobs:
           fi
 
           echo "Using Public IP: ${PUBLIC_IP}"
-
-          # Save private key
+          
+          # Save private key with proper OpenSSH format
+          umask 077
           echo "$PRIVATE_KEY" > private_key.pem
-          chmod 600 private_key.pem
-
+          
+          # Debug key format and permissions
+          ls -l private_key.pem
+          head -n 1 private_key.pem
+          
+          # Debug SSH connection
+          ssh -v -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} echo "SSH test"
+          
           # Wait for instance to be ready
           sleep 30
 

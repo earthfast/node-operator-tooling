@@ -12,77 +12,47 @@ services:
       - SETUP_SSL=${SETUP_SSL:-false}
     command: >
       /bin/sh -c "
+      echo '=== Starting nginx setup ===';
+      
       # Clean SERVER_NAME
       CLEAN_SERVER_NAME=\$(echo \"${SERVER_NAME}\" | sed 's/\\/*$//');
       echo \"Using server name: \$CLEAN_SERVER_NAME\";
       
-      # Remove default config
-      rm -f /etc/nginx/conf.d/*.conf
+      echo 'Removing default config...';
+      rm -f /etc/nginx/conf.d/*.conf;
       
-      # Write base configuration
-      cat > /etc/nginx/conf.d/default.conf << EOF
+      echo 'Writing new configuration...';
+      # Write base configuration with escaped nginx variables
+      cat > /etc/nginx/conf.d/default.conf << 'EOF'
       server_names_hash_bucket_size 128;
 
       server {
           listen 80;
           listen [::]:80;
-          server_name \$CLEAN_SERVER_NAME;
-          
+      EOF
+
+      # Inject the server name
+      echo "          server_name \$CLEAN_SERVER_NAME;" >> /etc/nginx/conf.d/default.conf
+
+      # Continue with the rest of the config
+      cat >> /etc/nginx/conf.d/default.conf << 'EOF'
           location /.well-known/acme-challenge/ {
               root /var/www/certbot;
           }
-      EOF
-
-      if [ '${SETUP_SSL}' = 'true' ]; then
-        # Add SSL redirect for HTTP
-        cat >> /etc/nginx/conf.d/default.conf << EOF
-          
-          location / {
-              return 301 https://\$host\$request_uri;
-          }
-      }
-
-      # Add SSL server block if certificates exist
-      if [ -f /etc/letsencrypt/live/\$CLEAN_SERVER_NAME/fullchain.pem ]; then
-          server {
-              listen 443 ssl;
-              listen [::]:443 ssl;
-              server_name \$CLEAN_SERVER_NAME;
-
-              ssl_certificate /etc/letsencrypt/live/\$CLEAN_SERVER_NAME/fullchain.pem;
-              ssl_certificate_key /etc/letsencrypt/live/\$CLEAN_SERVER_NAME/privkey.pem;
-
-              location / {
-                  proxy_pass http://content-node:5000;
-                  proxy_set_header X-Forwarded-For \$remote_addr;
-                  proxy_set_header Host \$http_host;
-              }
-          }
-      EOF
-      else
-          echo 'SSL certificates not found, using HTTP only';
-      fi
-      else
-        # Add HTTP proxy if SSL is not enabled
-        cat >> /etc/nginx/conf.d/default.conf << EOF
           
           location / {
               proxy_pass http://content-node:5000;
-              proxy_set_header X-Forwarded-For \$remote_addr;
-              proxy_set_header Host \$http_host;
+              proxy_set_header X-Forwarded-For $remote_addr;
+              proxy_set_header Host $http_host;
           }
-      EOF
-      fi
-
-      # Close the first server block
-      cat >> /etc/nginx/conf.d/default.conf << EOF
       }
       EOF
 
-      echo 'Final nginx configuration:';
+      echo '=== Generated nginx configuration ===';
       cat /etc/nginx/conf.d/default.conf;
       
-      nginx -g 'daemon off;'"
+      echo '=== Starting nginx ===';
+      nginx -t && nginx -g 'daemon off;' || (echo '=== Nginx configuration test failed ==='; cat /var/log/nginx/error.log; exit 1)"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 

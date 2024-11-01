@@ -37,19 +37,17 @@ jobs:
             --key-name ${{ secrets.AWS_KEY_NAME }} \
             --output text \
             --query 'Instances[0].InstanceId')
-  
-          echo "Waiting for instance to be running..."
+ 
+          # Wait for instance status checks
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
-  
+          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
+
+
           # Get public IP
           PUBLIC_IP=$(aws ec2 describe-instances \
             --instance-ids $INSTANCE_ID \
             --query 'Reservations[0].Instances[0].PublicIpAddress' \
             --output text)
-  
-          # Wait for instance status checks
-          echo "Waiting for instance status checks..."
-          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
   
           echo "instance_id=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
           echo "public_ip=${PUBLIC_IP}" >> "$GITHUB_OUTPUT"
@@ -69,9 +67,7 @@ jobs:
             echo "Error: PUBLIC_IP is empty"
             exit 1
           fi
-  
-          echo "Using Public IP: ${PUBLIC_IP}"
-          
+            
           # Save private key
           umask 077
           echo "$PRIVATE_KEY" > private_key.pem
@@ -82,9 +78,6 @@ jobs:
             "git clone -b ${BRANCH} https://github.com/earthfast/earthfast-node-setup-examples.git && \
               cd earthfast-node-setup-examples/content-node/docker-compose && \
               echo \"$SETUP_INPUTS\" | ./setup.sh"
-          
-          echo "Setup completed, waiting 10 seconds before starting services..."
-          sleep 10
   
           # Second SSH session - new login for Docker permissions
           echo "Starting content node..."
@@ -93,9 +86,6 @@ jobs:
 
       - name: Test /statusz endpoint
         run: |
-          # Wait for service to be ready
-          sleep 30
-
           for i in {1..6}; do
             response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ steps.ec2.outputs.public_ip }}/statusz)
             if [ "$response" = "200" ]; then

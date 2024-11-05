@@ -141,6 +141,23 @@ get_validated_input() {
     done
 }
 
+# Check if .env file exists and prompt for confirmation
+if [ -f ".env" ]; then
+    log_warning "An .env file already exists!"
+    read -p "Do you want to overwrite it? (y/n): " overwrite
+    if [[ ! $overwrite =~ ^[Yy]$ ]]; then
+        log_info "Keeping existing .env file."
+        echo
+        log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
+        # Remind to restart if docker group was added
+        if groups $USER | grep -q "\bdocker\b"; then
+            log_warning "Please log out and log back in for Docker group changes to take effect."
+        fi
+        exit 0
+    fi
+    log_info "Proceeding to overwrite existing .env file..."
+fi
+
 log_info "Please provide the following information:"
 printf "\n"
 

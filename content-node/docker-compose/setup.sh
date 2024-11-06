@@ -234,6 +234,10 @@ EOF
 log_success ".env file created successfully!"
 echo
 if [ "$AUTO_UPGRADE" = "true" ]; then
+    log_info "Auto-upgrade is enabled. Watchtower will:"
+    log_info "- Monitor and update Docker containers"
+    log_info "- Monitor and pull Git repository updates"
+    log_info "- Automatically restart services when updates are detected"
     log_info "To start the content node with auto-upgrade, use: ${GREEN}docker compose --profile autoupdate up -d${NC}"
 else
     log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"

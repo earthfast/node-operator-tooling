@@ -141,11 +141,17 @@ get_validated_input() {
     done
 }
 
-# Check if .env file exists and prompt for confirmation
+# Check if .env file exists and handle setup process
 if [ -f ".env" ]; then
+    log_info "Current .env file contents:"
+    echo "----------------------------------------"
+    cat .env
+    echo "----------------------------------------"
+    
     log_warning "An .env file already exists!"
-    read -p "Do you want to overwrite it? (y/n): " overwrite
-    if [[ ! $overwrite =~ ^[Yy]$ ]]; then
+    read -p "Would you like to go through the .env setup process again? (y/n): " setup_again
+    
+    if [[ ! $setup_again =~ ^[Yy]$ ]]; then
         log_info "Keeping existing .env file."
         echo
         log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
@@ -155,7 +161,12 @@ if [ -f ".env" ]; then
         fi
         exit 0
     fi
-    log_info "Proceeding to overwrite existing .env file..."
+    
+    # Backup existing .env file
+    backup_file=".env.backup.$(date +%Y%m%d_%H%M%S)"
+    mv .env "$backup_file"
+    log_info "Existing .env file backed up to $backup_file"
+    log_info "Proceeding with new .env setup..."
 fi
 
 log_info "Please provide the following information:"

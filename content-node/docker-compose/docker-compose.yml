@@ -44,10 +44,21 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   watchtower:
+    profiles:
+      - autoupdate
     image: containrrr/watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 60 --cleanup
+      - /root/.docker/config.json:/config.json
+      - ${PWD}:/repo
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_STOPPED=false
+      - WATCHTOWER_POLL_INTERVAL=60
+      - WATCHTOWER_GIT_URL=https://github.com/earthfast/node-operator-tooling
+      - WATCHTOWER_GIT_BRANCH=main
+      - WATCHTOWER_GIT_PATH=/repo
+    command: --interval 60 --cleanup --include-restarting
     restart: unless-stopped
 
 volumes:

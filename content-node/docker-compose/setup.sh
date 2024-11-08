@@ -7,6 +7,14 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Usage function
+usage() {
+    echo "Usage: $0 [--staging] [--auto-upgrade]"
+    echo "  --staging      Use staging environment"
+    echo "  --auto-upgrade Enable automatic updates using Watchtower"
+    exit 1
+}
+
 # Logging functions
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -73,18 +81,25 @@ verify_fqdn() {
 
 # Parse command line arguments
 ENVIRONMENT="testnet"
+AUTO_UPGRADE="false"
+
 while [[ "$#" -gt 0 ]]; do
     case $1 in
+    --help|-h) usage ;;
     --staging) ENVIRONMENT="staging" ;;
+    --auto-upgrade) AUTO_UPGRADE="true" ;;
     *)
         log_error "Unknown parameter: $1"
-        exit 1
+        usage
         ;;
     esac
     shift
 done
 
 log_info "Starting setup process..."
+if [ "$AUTO_UPGRADE" = "true" ]; then
+    log_info "Auto-upgrade is enabled"
+fi
 
 # Check and install Docker if needed
 if ! command -v docker &>/dev/null; then
@@ -154,7 +169,11 @@ if [ -f ".env" ]; then
     if [[ ! $setup_again =~ ^[Yy]$ ]]; then
         log_info "Keeping existing .env file."
         echo
-        log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
+        if [ "$AUTO_UPGRADE" = "true" ]; then
+            log_info "To start the content node with auto-upgrade, use: ${GREEN}docker compose --profile autoupdate up -d${NC}"
+        else
+            log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
+        fi
         # Remind to restart if docker group was added
         if groups $USER | grep -q "\bdocker\b"; then
             log_warning "Please log out and log back in for Docker group changes to take effect."
@@ -209,11 +228,20 @@ RPC_URL=https://eth-sepolia.g.alchemy.com/v2/7xFp9qkRZTVC7CvUHODk7TgyemLtkzxt
 CONTRACT_ADDRESS=$CONTRACT_ADDRESS
 HOSTING_CACHE_DIR=/hosting_cache
 DATABASE_DIR=/db_data
+AUTO_UPGRADE=$AUTO_UPGRADE
 EOF
 
 log_success ".env file created successfully!"
 echo
-log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
+if [ "$AUTO_UPGRADE" = "true" ]; then
+    log_info "Auto-upgrade is enabled. Watchtower will:"
+    log_info "- Monitor and update Docker containers"
+    log_info "- Monitor and pull Git repository updates"
+    log_info "- Automatically restart services when updates are detected"
+    log_info "To start the content node with auto-upgrade, use: ${GREEN}docker compose --profile autoupdate up -d${NC}"
+else
+    log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
+fi
 
 # Remind to restart if docker group was added
 if groups $USER | grep -q "\bdocker\b"; then

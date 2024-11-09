@@ -28,7 +28,7 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   content-node:
-    image: earthfast/content-node:latest
+    image: earthfast/content-node:779b01da53ab53542220361cbbd7aeb0b88d65ba43035546d1c96f91d123f608
     environment:
       - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
       - DATABASE_DIR=/data/database

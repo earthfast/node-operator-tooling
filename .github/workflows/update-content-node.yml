@@ -1,6 +1,11 @@
 name: Update Content Node Version
 
 on:
+  workflow_dispatch:
+    inputs:
+      commit_hash:
+        description: 'Commit hash to update to'
+        required: true
   repository_dispatch:
     types: [update-content-node]
 
@@ -14,12 +19,13 @@ jobs:
 
       - name: Update docker-compose.yml
         run: |
-          sed -i "s|earthfast/content-node:.*|earthfast/content-node:${{ github.event.client_payload.commit_hash }}|g" content-node/docker-compose/docker-compose.yml
+          COMMIT_HASH="${{ github.event.inputs.commit_hash || github.event.client_payload.commit_hash }}"
+          sed -i "s|earthfast/content-node:.*|earthfast/content-node:${COMMIT_HASH}|g" content-node/docker-compose/docker-compose.yml
 
       - name: Commit and push changes
         run: |
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add docker-compose.yml
-          git commit -m "chore: update content-node to ${{ github.event.client_payload.commit_hash }}"
+          git add content-node/docker-compose/docker-compose.yml
+          git commit -m "chore: update content-node to ${COMMIT_HASH}"
           git push

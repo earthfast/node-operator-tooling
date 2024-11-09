@@ -1,0 +1,25 @@
+name: Update Content Node Version
+
+on:
+  repository_dispatch:
+    types: [update-content-node]
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - name: Update docker-compose.yml
+        run: |
+          sed -i "s|earthfast/content-node:.*|earthfast/content-node:${{ github.event.client_payload.commit_hash }}|g" content-node/docker-compose/docker-compose.yml
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add docker-compose.yml
+          git commit -m "chore: update content-node to ${{ github.event.client_payload.commit_hash }}"
+          git push

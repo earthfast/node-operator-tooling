@@ -46,18 +46,13 @@ services:
   watchtower:
     profiles:
       - autoupdate
-    image: containrrr/watchtower:latest-alpine
+    image: containrrr/watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${PWD}:/repo
     environment:
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_INCLUDE_STOPPED=false
       - WATCHTOWER_POLL_INTERVAL=60
-      - WATCHTOWER_GIT_URL=https://github.com/earthfast/node-operator-tooling
-      - WATCHTOWER_GIT_BRANCH=main
-      - WATCHTOWER_GIT_PATH=/repo
-      - WATCHTOWER_NOTIFICATION_CMD="cd /repo && docker compose up -d"
     command: --interval 60 --cleanup --include-restarting
     restart: unless-stopped
 

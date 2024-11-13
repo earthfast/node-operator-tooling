@@ -60,7 +60,7 @@ services:
       - WATCHTOWER_GIT_PATH=/repo
       - WATCHTOWER_NOTIFICATION_URL=unix:///var/run/docker.sock
       - WATCHTOWER_NOTIFICATION_TEMPLATE="sh -c 'cd /repo && docker compose up -d'"
-    command: --monitoronly --cleanup --include-restarting
+    command: --cleanup --include-restarting
     restart: unless-stopped
 
   watchtower-updater:

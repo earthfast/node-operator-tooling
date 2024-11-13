@@ -46,7 +46,7 @@ services:
   watchtower:
     profiles:
       - autoupdate
-    image: containrrr/watchtower
+    image: containrrr/watchtower:latest-alpine
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${PWD}:/repo

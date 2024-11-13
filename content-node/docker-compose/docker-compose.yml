@@ -57,7 +57,7 @@ services:
       - WATCHTOWER_GIT_URL=https://github.com/earthfast/node-operator-tooling
       - WATCHTOWER_GIT_BRANCH=main
       - WATCHTOWER_GIT_PATH=/repo
-      - WATCHTOWER_NOTIFICATION_URL=cmd://cd /repo && docker compose up -d?
+      - WATCHTOWER_NOTIFICATION_CMD="cd /repo && docker compose up -d"
     command: --interval 60 --cleanup --include-restarting
     restart: unless-stopped
 

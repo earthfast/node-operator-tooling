@@ -43,10 +43,10 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
-  watchtower:
+  watchtower-git:
     profiles:
       - autoupdate
-    image: containrrr/watchtower
+    image: containrrr/watchtower:githook
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${PWD}:/repo
@@ -54,9 +54,24 @@ services:
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_INCLUDE_STOPPED=false
       - WATCHTOWER_POLL_INTERVAL=60
+      - WATCHTOWER_MONITOR_ONLY=true
       - WATCHTOWER_GIT_URL=https://github.com/earthfast/node-operator-tooling
       - WATCHTOWER_GIT_BRANCH=main
       - WATCHTOWER_GIT_PATH=/repo
+      - WATCHTOWER_NOTIFICATION_URL=unix:///var/run/docker.sock
+      - WATCHTOWER_NOTIFICATION_TEMPLATE="sh -c 'cd /repo && docker compose up -d'"
+    command: --monitoronly --cleanup --include-restarting
+    restart: unless-stopped
+
+  watchtower-updater:
+    profiles:
+      - autoupdate
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_STOPPED=false
     command: --interval 60 --cleanup --include-restarting
     restart: unless-stopped
 

@@ -21,9 +21,9 @@ The `setup.sh` script will prompt you for environment variables:
 
 Confirm success by curling the `/statusz` endpoint:
 ```sh
-# From inside the VM
-> curl localhost:5000/statusz
-# From outside the VM
+# On the VM outside the container
+> docker exec -it docker-compose-nginx-1 /bin/bash -c "curl http://content-node:5000/statusz"
+# From outside the VM using the FQDN
 > curl <FQDN>:5000/statusz
 ```
 

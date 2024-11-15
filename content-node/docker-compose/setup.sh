@@ -241,9 +241,9 @@ check_ports_and_ip() {
     # Check if ports are accessible from outside
     log_info "Checking port accessibility from external service..."
     for port in "${ports[@]}"; do
-        if curl -s "https://ports.yougetsignal.com/check-port.php" \\
-            -H "User-Agent: Mozilla/5.0" \\
-            --data-raw "remoteAddress=${ip}&portNumber=${port}" \\
+        if curl -s "https://ports.yougetsignal.com/check-port.php" \
+            -H "User-Agent: Mozilla/5.0" \
+            --data-raw "remoteAddress=${ip}&portNumber=${port}" \
             | grep -q "open"; then
             log_success "Port $port is accessible from outside"
         else

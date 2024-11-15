@@ -62,6 +62,21 @@ install_docker() {
     fi
 }
 
+install_dependencies() {
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get update
+        sudo apt-get install -y net-tools curl
+    elif command -v yum &>/dev/null; then
+        sudo yum install -y net-tools curl
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y net-tools curl
+    else
+        log_warning "Could not install dependencies automatically. Please ensure net-tools and curl are installed."
+    fi
+}
+
+install_dependencies
+
 # Function to verify FQDN points to VM IP
 verify_fqdn() {
     local fqdn=$1

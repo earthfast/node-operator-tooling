@@ -26,14 +26,17 @@ server {
 
     location / {
         proxy_pass http://content-node:5000;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header Host \$http_host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 EOF
 
 if [ "$SETUP_SSL" = "true" ] && [ -f "/etc/letsencrypt/live/$CLEAN_NAME/fullchain.pem" ]; then
     cat >>/etc/nginx/conf.d/default.conf <<EOF
+
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
@@ -46,6 +49,8 @@ server {
         proxy_pass http://content-node:5000;
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header Host \$http_host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 EOF

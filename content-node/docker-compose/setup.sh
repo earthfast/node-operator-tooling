@@ -62,6 +62,21 @@ install_docker() {
     fi
 }
 
+install_dependencies() {
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get update
+        sudo apt-get install -y net-tools curl
+    elif command -v yum &>/dev/null; then
+        sudo yum install -y net-tools curl
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y net-tools curl
+    else
+        log_warning "Could not install dependencies automatically. Please ensure net-tools and curl are installed."
+    fi
+}
+
+install_dependencies
+
 # Function to verify FQDN points to VM IP
 verify_fqdn() {
     local fqdn=$1
@@ -208,12 +223,53 @@ printf "${BLUE}Enter your certbot email${NC}: "
 read -r CERTBOT_EMAIL
 CERTBOT_EMAIL=$(echo "$CERTBOT_EMAIL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 
-# Verify FQDN if SSL is enabled
+check_ports_and_ip() {
+    local ports=("80" "443")
+    local ip=$(curl -s ifconfig.me)
+    local success=true
+
+    # Check if ports are open
+    for port in "${ports[@]}"; do
+        if netstat -tuln | grep -q ":$port "; then
+            log_error "Port $port is already in use"
+            success=false
+        else
+            log_success "Port $port is available"
+        fi
+    done
+
+    # Check if ports are accessible from outside
+    log_info "Checking port accessibility from external service..."
+    for port in "${ports[@]}"; do
+        if curl -s "https://ports.yougetsignal.com/check-port.php" \
+            -H "User-Agent: Mozilla/5.0" \
+            --data-raw "remoteAddress=${ip}&portNumber=${port}" \
+            | grep -q "open"; then
+            log_success "Port $port is accessible from outside"
+        else
+            log_warning "Port $port might be blocked by firewall"
+            success=false
+        fi
+    done
+
+    return $([[ "$success" == "true" ]] && echo 0 || echo 1)
+}
+
 if [ "$SETUP_SSL" = "true" ]; then
     log_info "Verifying FQDN..."
     if ! verify_fqdn "$SERVER_NAME"; then
         log_error "FQDN verification failed. Exiting..."
         exit 1
+    fi
+
+    log_info "Checking ports for SSL..."
+    if ! check_ports_and_ip; then
+        log_error "Port check failed. Please ensure ports 80 and 443 are open and available."
+        read -p "Continue anyway? (y/n): " continue
+        if [[ ! $continue =~ ^[Yy]$ ]]; then
+            log_error "Setup cancelled due to port verification failure."
+            exit 1
+        fi
     fi
 fi
 

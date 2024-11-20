@@ -27,6 +27,22 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  cert-handler:
+    profiles:
+      - ${SETUP_SSL:-false}
+    image: docker:cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - certbot
+    command: >
+      sh -c "
+      while ! test -f /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem; do
+        sleep 5;
+      done;
+      docker compose exec nginx nginx -s reload"
+
   content-node:
     image: earthfast/content-node:328568b54403b089b42707a8c01503a25fb59ef0
     environment:

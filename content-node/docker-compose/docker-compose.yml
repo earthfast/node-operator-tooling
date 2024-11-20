@@ -49,15 +49,12 @@ services:
         echo "SSL setup not enabled, skipping cert handler"
         exit 0
       fi;
-      echo "Waiting for certificates...";
       while ! test -f /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem; do
-        sleep 5;
+        sleep 1;
       done;
-      echo "Certificates found, waiting 5 seconds for them to be fully written...";
-      sleep 5;
-      echo "Reloading nginx...";
-      NGINX_CONTAINER=$$(docker ps -q -f name=nginx); docker exec -t $$NGINX_CONTAINER nginx -s reload;
-      echo "Nginx reloaded successfully"'
+      sleep 1;
+      NGINX_CONTAINER=$$(docker ps -q -f name=nginx); docker restart $$NGINX_CONTAINER;
+      echo "Nginx restarted successfully"'
     environment:
       - SETUP_SSL=${SETUP_SSL:-false}
       - SERVER_NAME=${SERVER_NAME}

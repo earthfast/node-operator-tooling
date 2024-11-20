@@ -27,8 +27,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     deploy:
-      condition: service_started
-      replicas: ${SETUP_SSL:-0}
+      replicas: ${SETUP_SSL:+1}${SETUP_SSL:-0}
 
   cert-handler:
     image: docker:cli
@@ -50,7 +49,7 @@ services:
       docker compose exec -T nginx nginx -s reload
       echo 'Nginx reloaded successfully'"
     deploy:
-      replicas: ${SETUP_SSL:-0}
+      replicas: ${SETUP_SSL:+1}${SETUP_SSL:-0}
 
   content-node:
     image: earthfast/content-node:328568b54403b089b42707a8c01503a25fb59ef0

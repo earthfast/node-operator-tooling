@@ -21,35 +21,45 @@ services:
       - ./letsencrypt:/etc/letsencrypt
       - ./webroot:/var/www/certbot
     command: >
-      certonly --webroot --webroot-path=/var/www/certbot --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email --force-renewal -d ${SERVER_NAME}
+      sh -c '
+      if [ "$SETUP_SSL" != "true" ]; then
+        echo "SSL setup not enabled, skipping certbot"
+        exit 0
+      fi
+      certbot certonly --webroot --webroot-path=/var/www/certbot --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email --force-renewal -d ${SERVER_NAME}'
+    environment:
+      - SETUP_SSL=${SETUP_SSL:-false}
     depends_on:
       - nginx
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    deploy:
-      replicas: ${SETUP_SSL:+1}${SETUP_SSL:-0}
 
   cert-handler:
     image: docker:cli
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./letsencrypt:/etc/letsencrypt:ro
-    depends_on:
-      certbot:
-        condition: service_completed_successfully
     command: >
-      sh -c "
-      echo 'Waiting for certificates...'
+      sh -c '
+      if [ "$SETUP_SSL" != "true" ]; then
+        echo "SSL setup not enabled, skipping cert handler"
+        exit 0
+      fi
+      echo "Waiting for certificates..."
       while ! test -f /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem; do
         sleep 5
       done
-      echo 'Certificates found, waiting 5 seconds for them to be fully written...'
+      echo "Certificates found, waiting 5 seconds for them to be fully written..."
       sleep 5
-      echo 'Reloading nginx...'
+      echo "Reloading nginx..."
       docker compose exec -T nginx nginx -s reload
-      echo 'Nginx reloaded successfully'"
-    deploy:
-      replicas: ${SETUP_SSL:+1}${SETUP_SSL:-0}
+      echo "Nginx reloaded successfully"'
+    environment:
+      - SETUP_SSL=${SETUP_SSL:-false}
+      - SERVER_NAME=${SERVER_NAME}
+    depends_on:
+      certbot:
+        condition: service_completed_successfully
 
   content-node:
     image: earthfast/content-node:328568b54403b089b42707a8c01503a25fb59ef0

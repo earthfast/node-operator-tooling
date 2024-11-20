@@ -138,7 +138,7 @@ else
 fi
 
 # Set contract address based on environment
-CONTRACT_ADDRESS=$([ "$ENVIRONMENT" = "staging" ] && echo "0xA73F1bd17a7F60374A6d4c511fBaebfDb3Bf774a" || echo "0x4E9CC81479cD303D2a581b4fD89372A20b262e35")
+CONTRACT_ADDRESS=$([ "$ENVIRONMENT" = "staging" ] && echo "0x69e4aa095489E8613B4C4d396DD916e66D66aE23" || echo "0xb1c5F9914648403cb32a4f83B0fb946E5f7702CC")
 log_info "Using contract address: $CONTRACT_ADDRESS"
 
 # Validation functions

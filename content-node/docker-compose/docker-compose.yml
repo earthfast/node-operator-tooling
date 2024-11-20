@@ -20,13 +20,16 @@ services:
     volumes:
       - ./letsencrypt:/etc/letsencrypt
       - ./webroot:/var/www/certbot
+    entrypoint: sh
     command: >
-      sh -c '
+      -c '
       if [ "$SETUP_SSL" != "true" ]; then
         echo "SSL setup not enabled, skipping certbot"
         exit 0
-      fi
-      certbot certonly --webroot --webroot-path=/var/www/certbot --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email --force-renewal -d ${SERVER_NAME}'
+      fi;
+      certbot certonly --webroot --webroot-path=/var/www/certbot 
+      --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email 
+      --force-renewal -d ${SERVER_NAME}'
     environment:
       - SETUP_SSL=${SETUP_SSL:-false}
     depends_on:
@@ -39,20 +42,21 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./letsencrypt:/etc/letsencrypt:ro
+    entrypoint: sh
     command: >
-      sh -c '
+      -c '
       if [ "$SETUP_SSL" != "true" ]; then
         echo "SSL setup not enabled, skipping cert handler"
         exit 0
-      fi
-      echo "Waiting for certificates..."
+      fi;
+      echo "Waiting for certificates...";
       while ! test -f /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem; do
-        sleep 5
-      done
-      echo "Certificates found, waiting 5 seconds for them to be fully written..."
-      sleep 5
-      echo "Reloading nginx..."
-      docker compose exec -T nginx nginx -s reload
+        sleep 5;
+      done;
+      echo "Certificates found, waiting 5 seconds for them to be fully written...";
+      sleep 5;
+      echo "Reloading nginx...";
+      docker compose exec -T nginx nginx -s reload;
       echo "Nginx reloaded successfully"'
     environment:
       - SETUP_SSL=${SETUP_SSL:-false}

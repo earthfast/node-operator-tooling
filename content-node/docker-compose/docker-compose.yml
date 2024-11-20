@@ -56,7 +56,7 @@ services:
       echo "Certificates found, waiting 5 seconds for them to be fully written...";
       sleep 5;
       echo "Reloading nginx...";
-      docker compose exec -T nginx nginx -s reload;
+      NGINX_CONTAINER=$$(docker ps -q -f name=nginx); docker exec -t $$NGINX_CONTAINER nginx -s reload;
       echo "Nginx reloaded successfully"'
     environment:
       - SETUP_SSL=${SETUP_SSL:-false}

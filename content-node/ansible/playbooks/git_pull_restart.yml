@@ -1,0 +1,24 @@
+- name: Git pull and restart Docker Compose
+  hosts: all
+  become: true
+  vars:
+    application_path: "/home/ubuntu/node-operator-tooling/content-node/docker-compose"
+
+  tasks:
+    - name: Pull the latest code from the repository
+      ansible.builtin.shell:
+        cmd: "cd {{ application_path }} && git pull"
+      register: git_pull_result
+
+    - name: Display git pull result
+      debug:
+        msg: "{{ git_pull_result.stdout_lines }}"
+
+    - name: Restart Docker Compose
+      ansible.builtin.shell:
+        cmd: "cd {{ application_path }} && docker compose down && docker compose up -d"
+      register: restart_result
+
+    - name: Display Docker Compose restart result
+      debug:
+        msg: "{{ restart_result.stdout_lines }}"

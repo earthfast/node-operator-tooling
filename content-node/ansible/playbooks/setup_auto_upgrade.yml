@@ -1,0 +1,53 @@
+- name: Setup automatic git pull cron job
+  hosts: all
+  become: true
+  vars:
+    application_path: "/home/ubuntu/node-operator-tooling/content-node/docker-compose"
+    cron_schedule: "0 */4 * * *"  # Runs every 4 hours
+  tasks:
+    - name: Create auto-upgrade script
+      copy:
+        dest: /usr/local/bin/git-auto-upgrade.sh
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          cd {{ application_path }}
+          
+          # Stash any local changes (excluding .env)
+          git stash push --keep-index -- ':!.env'
+          
+          # Force pull the latest changes
+          git fetch origin
+          git reset --hard origin/main
+          
+          # Apply stashed changes
+          git stash pop || true
+          
+          # Restart Docker Compose
+          docker compose down
+          docker compose up -d
+
+    - name: Set up cron job for auto-upgrade
+      cron:
+        name: "Git auto-upgrade"
+        minute: "{{ cron_schedule.split(' ')[0] }}"
+        hour: "{{ cron_schedule.split(' ')[1] }}"
+        day: "{{ cron_schedule.split(' ')[2] }}"
+        month: "{{ cron_schedule.split(' ')[3] }}"
+        weekday: "{{ cron_schedule.split(' ')[4] }}"
+        job: "/usr/local/bin/git-auto-upgrade.sh >> /var/log/git-auto-upgrade.log 2>&1"
+        user: ubuntu
+
+    - name: Create logrotate configuration
+      copy:
+        dest: /etc/logrotate.d/git-auto-upgrade
+        mode: '0644'
+        content: |
+          /var/log/git-auto-upgrade.log {
+            rotate 7
+            daily
+            compress
+            missingok
+            notifempty
+            create 0644 ubuntu ubuntu
+          }

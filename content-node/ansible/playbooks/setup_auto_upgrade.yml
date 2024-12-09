@@ -5,27 +5,72 @@
     application_path: "/home/ubuntu/node-operator-tooling/content-node/docker-compose"
     cron_schedule: "0 */4 * * *"  # Runs every 4 hours
   tasks:
+    - name: Ensure log directory exists
+      file:
+        path: /var/log/earthfast
+        state: directory
+        mode: '0755'
+        owner: ubuntu
+        group: ubuntu
+
     - name: Create auto-upgrade script
       copy:
         dest: /usr/local/bin/git-auto-upgrade.sh
         mode: '0755'
+        owner: ubuntu
+        group: ubuntu
         content: |
           #!/bin/bash
+          
+          # Enable error logging
+          set -e
+          
+          # Log start time
+          echo "=== Starting auto-upgrade at $(date) ===" >> /var/log/earthfast/git-auto-upgrade.log
+          
+          # Export PATH to ensure git and docker commands are available
+          export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+          
+          # Change to application directory
           cd {{ application_path }}
           
+          echo "Current directory: $(pwd)" >> /var/log/earthfast/git-auto-upgrade.log
+          
           # Stash any local changes (excluding .env)
-          git stash push --keep-index -- ':!.env'
+          echo "Stashing local changes..." >> /var/log/earthfast/git-auto-upgrade.log
+          git stash push --keep-index -- ':!.env' || true
           
           # Force pull the latest changes
+          echo "Pulling latest changes..." >> /var/log/earthfast/git-auto-upgrade.log
           git fetch origin
           git reset --hard origin/main
           
-          # Apply stashed changes
+          # Apply stashed changes (if any)
+          echo "Applying stashed changes..." >> /var/log/earthfast/git-auto-upgrade.log
           git stash pop || true
           
-          # Restart Docker Compose
-          docker compose down
+          # Restart Docker Compose with force removal
+          echo "Stopping and removing containers..." >> /var/log/earthfast/git-auto-upgrade.log
+          
+          # Force remove all containers
+          docker compose down --remove-orphans || true
+          
+          # Additional cleanup in case some containers are stuck
+          containers=$(docker ps -a --filter "name=docker-compose-" -q)
+          if [ ! -z "$containers" ]; then
+            echo "Force removing stuck containers..." >> /var/log/earthfast/git-auto-upgrade.log
+            docker rm -f $containers || true
+          fi
+          
+          # Remove any dangling networks
+          echo "Cleaning up networks..." >> /var/log/earthfast/git-auto-upgrade.log
+          docker network prune -f || true
+          
+          # Start services
+          echo "Starting services..." >> /var/log/earthfast/git-auto-upgrade.log
           docker compose up -d
+          
+          echo "=== Completed auto-upgrade at $(date) ===" >> /var/log/earthfast/git-auto-upgrade.log
 
     - name: Set up cron job for auto-upgrade
       cron:
@@ -35,7 +80,7 @@
         day: "{{ cron_schedule.split(' ')[2] }}"
         month: "{{ cron_schedule.split(' ')[3] }}"
         weekday: "{{ cron_schedule.split(' ')[4] }}"
-        job: "/usr/local/bin/git-auto-upgrade.sh >> /var/log/git-auto-upgrade.log 2>&1"
+        job: "/usr/local/bin/git-auto-upgrade.sh >> /var/log/earthfast/git-auto-upgrade.log 2>&1"
         user: ubuntu
 
     - name: Create logrotate configuration
@@ -43,7 +88,7 @@
         dest: /etc/logrotate.d/git-auto-upgrade
         mode: '0644'
         content: |
-          /var/log/git-auto-upgrade.log {
+          /var/log/earthfast/git-auto-upgrade.log {
             rotate 7
             daily
             compress
@@ -51,3 +96,21 @@
             notifempty
             create 0644 ubuntu ubuntu
           }
+
+    - name: Test script execution
+      become_user: ubuntu
+      shell: /usr/local/bin/git-auto-upgrade.sh
+      register: test_result
+      ignore_errors: yes
+
+    - name: Display test result
+      debug:
+        var: test_result
+
+    - name: Verify cron job
+      shell: crontab -l -u ubuntu
+      register: crontab_content
+
+    - name: Display cron configuration
+      debug:
+        var: crontab_content.stdout_lines

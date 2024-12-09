@@ -1,0 +1,20 @@
+- name: Edit env files to add a new property
+  hosts: all
+  become: true
+  vars:
+    application_path: "/home/ubuntu/node-operator-tooling/content-node/docker-compose"
+    env_property_name: "CONTRACT_ADDRESS"
+    env_property_value: "0xb1c5F9914648403cb32a4f83B0fb946E5f7702CC"
+
+  tasks:
+    - name: Add or update a property in the .env file
+      ansible.builtin.lineinfile:
+        path: "{{ application_path }}/.env"
+        regexp: "^{{ env_property_name }}="
+        line: "{{ env_property_name }}={{ env_property_value }}"
+        state: present
+      register: env_update_result
+
+    - name: Display .env update result
+      debug:
+        var: env_update_result

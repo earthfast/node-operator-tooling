@@ -1,17 +1,69 @@
 - name: Setup automatic git pull cron job
   hosts: all
   become: true
+  gather_facts: true
   vars:
+    ansible_python_interpreter: /usr/bin/python3
+    base_path: "/home/ubuntu/node-operator-tooling"
     application_path: "/home/ubuntu/node-operator-tooling/content-node/docker-compose"
-    cron_schedule: "0 */4 * * *"  # Runs every 4 hours
+    git_repo_url: "https://github.com/earthfast/node-operator-tooling"
+    cron_schedule: "0 */4 * * *"
+    log_dir: "/var/log/earthfast"
+
   tasks:
     - name: Ensure log directory exists
       file:
-        path: /var/log/earthfast
+        path: "{{ log_dir }}"
         state: directory
-        mode: '0755'
         owner: ubuntu
         group: ubuntu
+        mode: '0755'
+
+    - name: Check if .env file exists
+      stat:
+        path: "{{ application_path }}/.env"
+      register: env_file
+
+    - name: Create backup of .env file
+      become_user: ubuntu
+      copy:
+        src: "{{ application_path }}/.env"
+        dest: "/tmp/.env.backup"
+        remote_src: yes
+      ignore_errors: yes
+      when: env_file.stat.exists
+
+    - name: Ensure fresh clone of repository
+      block:
+        - name: Remove existing directory
+          file:
+            path: "{{ base_path }}"
+            state: absent
+
+        - name: Create base directory
+          file:
+            path: "{{ base_path }}"
+            state: directory
+            owner: ubuntu
+            group: ubuntu
+            mode: '0755'
+
+        - name: Clone repository
+          become_user: ubuntu
+          git:
+            repo: "{{ git_repo_url }}"
+            dest: "{{ base_path }}"
+            force: yes
+            version: main
+
+    - name: Restore .env file
+      become_user: ubuntu
+      copy:
+        src: "/tmp/.env.backup"
+        dest: "{{ application_path }}/.env"
+        remote_src: yes
+      ignore_errors: yes
+      when: env_file.stat.exists
 
     - name: Create auto-upgrade script
       copy:
@@ -21,74 +73,84 @@
         group: ubuntu
         content: |
           #!/bin/bash
-          
-          # Enable error logging
           set -e
           
-          # Log start time
-          echo "=== Starting auto-upgrade at $(date) ===" >> /var/log/earthfast/git-auto-upgrade.log
+          LOG_FILE="{{ log_dir }}/git-auto-upgrade.log"
+          echo "=== Starting auto-upgrade at $(date) ===" >> "$LOG_FILE"
           
-          # Export PATH to ensure git and docker commands are available
-          export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-          
-          # Change to application directory
-          cd {{ application_path }}
-          
-          echo "Current directory: $(pwd)" >> /var/log/earthfast/git-auto-upgrade.log
-          
-          # Stash any local changes (excluding .env)
-          echo "Stashing local changes..." >> /var/log/earthfast/git-auto-upgrade.log
-          git stash push --keep-index -- ':!.env' || true
-          
-          # Force pull the latest changes
-          echo "Pulling latest changes..." >> /var/log/earthfast/git-auto-upgrade.log
-          git fetch origin
-          git reset --hard origin/main
-          
-          # Apply stashed changes (if any)
-          echo "Applying stashed changes..." >> /var/log/earthfast/git-auto-upgrade.log
-          git stash pop || true
-          
-          # Restart Docker Compose with force removal
-          echo "Stopping and removing containers..." >> /var/log/earthfast/git-auto-upgrade.log
-          
-          # Force remove all containers
-          docker compose down --remove-orphans || true
-          
-          # Additional cleanup in case some containers are stuck
-          containers=$(docker ps -a --filter "name=docker-compose-" -q)
-          if [ ! -z "$containers" ]; then
-            echo "Force removing stuck containers..." >> /var/log/earthfast/git-auto-upgrade.log
-            docker rm -f $containers || true
+          # Ensure base directory exists
+          if [ ! -d "{{ base_path }}" ]; then
+            mkdir -p "{{ base_path }}"
+            cd "{{ base_path }}"
+            git clone "{{ git_repo_url }}" .
           fi
           
-          # Remove any dangling networks
-          echo "Cleaning up networks..." >> /var/log/earthfast/git-auto-upgrade.log
-          docker network prune -f || true
+          cd "{{ base_path }}"
           
-          # Start services
-          echo "Starting services..." >> /var/log/earthfast/git-auto-upgrade.log
-          docker compose up -d
+          # Backup .env if exists
+          if [ -f "{{ application_path }}/.env" ]; then
+            cp "{{ application_path }}/.env" /tmp/.env.backup
+          fi
           
-          echo "=== Completed auto-upgrade at $(date) ===" >> /var/log/earthfast/git-auto-upgrade.log
+          # Update repository
+          if [ -d .git ]; then
+            git fetch origin
+            git reset --hard origin/main
+          else
+            git clone "{{ git_repo_url }}" .
+          fi
+          
+          # Restore .env
+          if [ -f /tmp/.env.backup ]; then
+            mkdir -p "{{ application_path }}"
+            cp /tmp/.env.backup "{{ application_path }}/.env"
+            rm /tmp/.env.backup
+          fi
+          
+          # Docker operations
+          cd "{{ application_path }}"
+          COMPOSE_FILE=$(ls docker-compose.y*ml 2>/dev/null | head -n 1)
+          
+          if [ -z "$COMPOSE_FILE" ]; then
+            echo "Error: No docker-compose file found!" >> "$LOG_FILE"
+            exit 1
+          fi
+          
+          docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
+          docker container prune -f
+          docker network prune -f
+          
+          # Start services and don't fail if certbot has issues
+          if ! docker compose -f "$COMPOSE_FILE" up -d; then
+            echo "Warning: Some services failed to start properly" >> "$LOG_FILE"
+            # Check if main services are running
+            if docker ps | grep -q "content-node"; then
+              echo "Main content-node service is running, continuing..." >> "$LOG_FILE"
+            else
+              echo "Critical service content-node is not running, exiting with error" >> "$LOG_FILE"
+              exit 1
+            fi
+          fi
+          
+          echo "=== Completed auto-upgrade at $(date) ===" >> "$LOG_FILE"
 
-    - name: Set up cron job for auto-upgrade
+    - name: Setup cron job
       cron:
         name: "Git auto-upgrade"
+        job: "/usr/local/bin/git-auto-upgrade.sh"
+        user: ubuntu
         minute: "{{ cron_schedule.split(' ')[0] }}"
         hour: "{{ cron_schedule.split(' ')[1] }}"
         day: "{{ cron_schedule.split(' ')[2] }}"
         month: "{{ cron_schedule.split(' ')[3] }}"
         weekday: "{{ cron_schedule.split(' ')[4] }}"
-        job: "/usr/local/bin/git-auto-upgrade.sh >> /var/log/earthfast/git-auto-upgrade.log 2>&1"
-        user: ubuntu
 
-    - name: Create logrotate configuration
+    - name: Configure logrotate
       copy:
         dest: /etc/logrotate.d/git-auto-upgrade
         mode: '0644'
         content: |
-          /var/log/earthfast/git-auto-upgrade.log {
+          {{ log_dir }}/git-auto-upgrade.log {
             rotate 7
             daily
             compress
@@ -99,18 +161,6 @@
 
     - name: Test script execution
       become_user: ubuntu
-      shell: /usr/local/bin/git-auto-upgrade.sh
+      command: /usr/local/bin/git-auto-upgrade.sh
       register: test_result
       ignore_errors: yes
-
-    - name: Display test result
-      debug:
-        var: test_result
-
-    - name: Verify cron job
-      shell: crontab -l -u ubuntu
-      register: crontab_content
-
-    - name: Display cron configuration
-      debug:
-        var: crontab_content.stdout_lines

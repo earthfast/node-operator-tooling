@@ -2,16 +2,60 @@
   hosts: all
   become: true
   vars:
+    base_path: "/home/ubuntu/node-operator-tooling"
     application_path: "/home/ubuntu/node-operator-tooling/content-node/docker-compose"
-    cron_schedule: "0 */4 * * *"  # Runs every 4 hours
+    git_repo_url: "https://github.com/earthfast/node-operator-tooling"
+    cron_schedule: "0 */4 * * *"
   tasks:
-    - name: Ensure log directory exists
+    - name: Backup .env file if it exists
+      become_user: ubuntu
+      shell: |
+        if [ -f "{{ application_path }}/.env" ]; then
+          cp "{{ application_path }}/.env" /tmp/.env.backup
+        fi
+      args:
+        executable: /bin/bash
+      ignore_errors: yes
+
+    - name: Remove existing directory
       file:
-        path: /var/log/earthfast
+        path: "{{ base_path }}"
+        state: absent
+
+    - name: Create base directory
+      file:
+        path: "{{ base_path }}"
         state: directory
-        mode: '0755'
         owner: ubuntu
         group: ubuntu
+        mode: '0755'
+
+    - name: Clone repository fresh
+      become_user: ubuntu
+      git:
+        repo: "{{ git_repo_url }}"
+        dest: "{{ base_path }}"
+        force: yes
+        version: main
+
+    - name: Ensure application directory exists
+      file:
+        path: "{{ application_path }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Restore .env file if it existed
+      become_user: ubuntu
+      shell: |
+        if [ -f "/tmp/.env.backup" ]; then
+          cp /tmp/.env.backup "{{ application_path }}/.env"
+          rm /tmp/.env.backup
+        fi
+      args:
+        executable: /bin/bash
+      ignore_errors: yes
 
     - name: Create auto-upgrade script
       copy:
@@ -22,53 +66,75 @@
         content: |
           #!/bin/bash
           
-          # Enable error logging
-          set -e
+          # Enable error logging and debugging
+          set -ex
           
           # Log start time
           echo "=== Starting auto-upgrade at $(date) ===" >> /var/log/earthfast/git-auto-upgrade.log
           
-          # Export PATH to ensure git and docker commands are available
+          # Export PATH
           export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
           
-          # Change to application directory
-          cd {{ application_path }}
+          # Change to base directory for git operations
+          cd {{ base_path }}
           
-          echo "Current directory: $(pwd)" >> /var/log/earthfast/git-auto-upgrade.log
+          # Ensure Git directory has correct permissions
+          sudo find .git -type d -exec chmod 777 {} \;
+          sudo find .git -type f -exec chmod 666 {} \;
           
-          # Stash any local changes (excluding .env)
-          echo "Stashing local changes..." >> /var/log/earthfast/git-auto-upgrade.log
-          git stash push --keep-index -- ':!.env' || true
+          # Backup .env if it exists
+          if [ -f "{{ application_path }}/.env" ]; then
+            cp "{{ application_path }}/.env" /tmp/.env.backup
+          fi
           
-          # Force pull the latest changes
-          echo "Pulling latest changes..." >> /var/log/earthfast/git-auto-upgrade.log
+          # Clean and reset repository
+          git reset --hard HEAD
+          git clean -fd
+          
+          # Pull latest changes
           git fetch origin
           git reset --hard origin/main
           
-          # Apply stashed changes (if any)
-          echo "Applying stashed changes..." >> /var/log/earthfast/git-auto-upgrade.log
-          git stash pop || true
+          # Restore .env if it existed
+          if [ -f /tmp/.env.backup ]; then
+            cp /tmp/.env.backup "{{ application_path }}/.env"
+            rm /tmp/.env.backup
+          fi
           
-          # Restart Docker Compose with force removal
-          echo "Stopping and removing containers..." >> /var/log/earthfast/git-auto-upgrade.log
+          # Change to application directory for docker operations
+          cd {{ application_path }}
           
-          # Force remove all containers
-          docker compose down --remove-orphans || true
+          # Verify docker-compose file exists
+          if [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ]; then
+            echo "Error: No docker-compose file found!"
+            exit 1
+          fi
           
-          # Additional cleanup in case some containers are stuck
+          # Determine which compose file to use
+          COMPOSE_FILE=""
+          if [ -f "docker-compose.yml" ]; then
+            COMPOSE_FILE="docker-compose.yml"
+          elif [ -f "docker-compose.yaml" ]; then
+            COMPOSE_FILE="docker-compose.yaml"
+          fi
+          
+          # Docker operations with explicit compose file
+          echo "Using Docker Compose file: $COMPOSE_FILE"
+          
+          # Stop existing containers
+          docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
+          
+          # Clean up containers
           containers=$(docker ps -a --filter "name=docker-compose-" -q)
           if [ ! -z "$containers" ]; then
-            echo "Force removing stuck containers..." >> /var/log/earthfast/git-auto-upgrade.log
             docker rm -f $containers || true
           fi
           
-          # Remove any dangling networks
-          echo "Cleaning up networks..." >> /var/log/earthfast/git-auto-upgrade.log
+          # Clean up networks
           docker network prune -f || true
           
-          # Start services
-          echo "Starting services..." >> /var/log/earthfast/git-auto-upgrade.log
-          docker compose up -d
+          # Start services with explicit compose file
+          docker compose -f "$COMPOSE_FILE" up -d
           
           echo "=== Completed auto-upgrade at $(date) ===" >> /var/log/earthfast/git-auto-upgrade.log
 

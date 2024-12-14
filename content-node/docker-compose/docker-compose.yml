@@ -63,7 +63,7 @@ services:
         condition: service_completed_successfully
 
   content-node:
-    image: earthfast/content-node:91eb2e5af05f2b6fc3ce0d6baba2c66867df880f
+    image: earthfast/content-node:d3238a919d776f2718c8bce2dfb8ad8880e7c338
     environment:
       - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
       - DATABASE_DIR=/data/database

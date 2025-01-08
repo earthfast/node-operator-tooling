@@ -36,7 +36,7 @@ install_docker() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         log_error "Please install Docker Desktop for Mac from: https://www.docker.com/products/docker-desktop"
         exit 1
-    elif [[ "$OSTYPE" "msys" || "$OSTYPE" "cygwin" ]]; then
+    elif [[ "$OSTYPE" ==  "msys" || "$OSTYPE" == "cygwin" ]]; then
         log_error "Please install Docker Desktop for Windows from: https://www.docker.com/products/docker-desktop"
         exit 1
     else

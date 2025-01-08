@@ -1,66 +1,18 @@
 services:
-  nginx:
-    image: nginx:latest
+  caddy:
+    image: caddy:latest
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./letsencrypt:/etc/letsencrypt
-      - ./webroot:/var/www/certbot
-      - ./nginx-entrypoint.sh:/docker-entrypoint.d/40-config-nginx.sh:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
     environment:
       - SERVER_NAME=${SERVER_NAME}
-      - SETUP_SSL=${SETUP_SSL:-false}
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - ./letsencrypt:/etc/letsencrypt
-      - ./webroot:/var/www/certbot
-    entrypoint: sh
-    command: >
-      -c '
-      if [ "$SETUP_SSL" != "true" ]; then
-        echo "SSL setup not enabled, skipping certbot"
-        exit 0
-      fi;
-      certbot certonly --webroot --webroot-path=/var/www/certbot 
-      --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email 
-      --force-renewal -d ${SERVER_NAME}'
-    environment:
-      - SETUP_SSL=${SETUP_SSL:-false}
-    depends_on:
-      - nginx
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-
-  cert-handler:
-    image: docker:cli
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./letsencrypt:/etc/letsencrypt:ro
-    entrypoint: sh
-    command: >
-      -c '
-      if [ "$SETUP_SSL" != "true" ]; then
-        echo "SSL setup not enabled, skipping cert handler"
-        exit 0
-      fi;
-      while ! test -f /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem; do
-        sleep 1;
-      done;
-      sleep 1;
-      NGINX_CONTAINER=$$(docker ps -q -f name=nginx); docker restart $$NGINX_CONTAINER;
-      echo "Nginx restarted successfully"'
-    environment:
-      - SETUP_SSL=${SETUP_SSL:-false}
-      - SERVER_NAME=${SERVER_NAME}
-    depends_on:
-      certbot:
-        condition: service_completed_successfully
 
   content-node:
     image: earthfast/content-node:c37beb1c1e3f273f20e1a93a026a7078681e7b70
@@ -92,4 +44,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  letsencrypt:
+  caddy_data:
+  caddy_config:

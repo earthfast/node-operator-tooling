@@ -1,25 +1,32 @@
 {
     email contact@earthfast.com
+    auto_https disable_redirects
 }
 
-{$SERVER_NAME} {
-    tls {
-        issuer acme {
-            disable_http_challenge
-            disable_tlsalpn_challenge
-        }
+:80 {
+    @localtest {
+        host localhost
+        host 127.0.0.1
+    }
+    handle @localtest {
+        reverse_proxy content-node:5000
     }
 
     handle {
         reverse_proxy content-node:5000 {
-            header_up X-Forwarded-For {remote}
             header_up X-Real-IP {remote}
             header_up X-Forwarded-Proto {scheme}
         }
     }
+}
 
-    log {
-        output stdout
-        format console
+{$SERVER_NAME} {
+    tls {
+        issuer acme
+    }
+    
+    reverse_proxy content-node:5000 {
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-Proto {scheme}
     }
 }

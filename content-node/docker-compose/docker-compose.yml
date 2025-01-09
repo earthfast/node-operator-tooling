@@ -9,10 +9,13 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     environment:
-      - SERVER_NAME=${SERVER_NAME}
+      - SERVER_NAME
+    env_file:
+      - .env
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
 
   content-node:
     image: earthfast/content-node:c37beb1c1e3f273f20e1a93a026a7078681e7b70

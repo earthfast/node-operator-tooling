@@ -4,18 +4,21 @@
 }
 
 {$SERVER_NAME} {
-    tls {
-        issuer acme
+    @http {
+        protocol http
     }
-
-    handle {
+    handle @http {
         reverse_proxy content-node:5000
     }
 
-    handle /statusz {
+    @https {
+        protocol https
+    }
+    handle @https {
         reverse_proxy content-node:5000
     }
 
+    # Logging
     log {
         output stdout
         format console

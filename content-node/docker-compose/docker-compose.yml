@@ -20,6 +20,8 @@ services:
 
   content-node:
     image: earthfast/content-node:c37beb1c1e3f273f20e1a93a026a7078681e7b70
+    ports:
+      - "127.0.0.1:5000:5000"
     environment:
       - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
       - DATABASE_DIR=/data/database

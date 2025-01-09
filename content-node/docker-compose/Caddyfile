@@ -1,24 +1,23 @@
 {
-    admin off
     email contact@earthfast.com
 }
 
 {$SERVER_NAME} {
-    @http {
-        protocol http
-    }
-    handle @http {
-        reverse_proxy content-node:5000
-    }
-
-    @https {
-        protocol https
-    }
-    handle @https {
-        reverse_proxy content-node:5000
+    tls {
+        issuer acme {
+            disable_http_challenge
+            disable_tlsalpn_challenge
+        }
     }
 
-    # Logging
+    handle {
+        reverse_proxy content-node:5000 {
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
     log {
         output stdout
         format console

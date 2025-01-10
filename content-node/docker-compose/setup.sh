@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -234,7 +235,6 @@ EOF
 
 log_success ".env file created successfully!"
 echo
-
 if [ "$AUTO_UPGRADE" = "true" ]; then
     log_info "Auto-upgrade is enabled. Watchtower will:"
     log_info "- Monitor and update Docker containers"

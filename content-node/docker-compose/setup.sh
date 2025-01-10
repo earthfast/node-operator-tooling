@@ -207,6 +207,9 @@ check_ports() {
             log_success "Port $port is available"
         fi
     done
+
+    # TODO: Check if ports are accessible from outside
+
     return $([[ "$success" == "true" ]] && echo 0 || echo 1)
 }
 

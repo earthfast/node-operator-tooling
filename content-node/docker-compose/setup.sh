@@ -36,7 +36,7 @@ install_docker() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         log_error "Please install Docker Desktop for Mac from: https://www.docker.com/products/docker-desktop"
         exit 1
-    elif [[ "$OSTYPE" ==  "msys" || "$OSTYPE" == "cygwin" ]]; then
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
         log_error "Please install Docker Desktop for Windows from: https://www.docker.com/products/docker-desktop"
         exit 1
     else
@@ -96,15 +96,16 @@ verify_fqdn() {
 # Parse command line arguments
 ENVIRONMENT="testnet"
 AUTO_UPGRADE="false"
+
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --help|-h) usage ;;
-        --staging) ENVIRONMENT="staging" ;;
-        --auto-upgrade) AUTO_UPGRADE="true" ;;
-        *)
-            log_error "Unknown parameter: $1"
-            usage
-            ;;
+    --help|-h) usage ;;
+    --staging) ENVIRONMENT="staging" ;;
+    --auto-upgrade) AUTO_UPGRADE="true" ;;
+    *)
+        log_error "Unknown parameter: $1"
+        usage
+        ;;
     esac
     shift
 done
@@ -145,8 +146,10 @@ if [ -f ".env" ]; then
     echo "----------------------------------------"
     cat .env
     echo "----------------------------------------"
+
     log_warning "An .env file already exists!"
     read -p "Would you like to go through the .env setup process again? (y/n): " setup_again
+
     if [[ ! $setup_again =~ ^[Yy]$ ]]; then
         log_info "Keeping existing .env file."
         echo
@@ -155,18 +158,20 @@ if [ -f ".env" ]; then
         else
             log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
         fi
+        # Remind to restart if docker group was added
         if groups $USER | grep -q "\bdocker\b"; then
             log_warning "Please log out and log back in for Docker group changes to take effect."
         fi
         exit 0
     fi
+
+    # Backup existing .env file
     backup_file=".env.backup.$(date +%Y%m%d_%H%M%S)"
     mv .env "$backup_file"
     log_info "Existing .env file backed up to $backup_file"
     log_info "Proceeding with new .env setup..."
 fi
 
-# Get inputs
 log_info "Please provide the following information:"
 printf "\n"
 

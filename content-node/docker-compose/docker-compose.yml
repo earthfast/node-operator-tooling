@@ -10,10 +10,12 @@ services:
     command: >
       sh -c 'echo "{
         admin off
-        auto_https disable_redirects
       }
 
-      ${SERVER_NAME} {
+      http://localhost:80 {
+        reverse_proxy content-node:5000
+      }
+      http://${SERVER_NAME}, https://${SERVER_NAME} {
         reverse_proxy content-node:5000
       }" > /etc/caddy/Caddyfile && caddy run --config /etc/caddy/Caddyfile'
     environment:

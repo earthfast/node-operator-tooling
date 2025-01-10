@@ -16,7 +16,7 @@
 
     - name: Restart Docker Compose
       ansible.builtin.shell:
-        cmd: "cd {{ application_path }} && docker compose down && docker compose up -d"
+        cmd: "cd {{ application_path }} && docker compose down && docker compose up -d --remove-orphans"
       register: restart_result
 
     - name: Display Docker Compose restart result

@@ -92,7 +92,7 @@ jobs:
           # SSH in and test locally
           ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@${PUBLIC_IP} \
             "for i in {1..6}; do \
-              response=\$(curl -s -o /dev/null -w '%{http_code}' http://localhost/statusz); \
+              response=\$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5000/statusz); \
               if [ \"\$response\" = \"200\" ]; then \
                 echo \"Statusz check passed\"; \
                 exit 0; \

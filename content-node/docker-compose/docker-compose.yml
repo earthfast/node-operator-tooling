@@ -1,18 +1,52 @@
 services:
   caddy:
-    image: caddy:latest
+    image: caddy:2.9
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    command: >
+      sh -c 'echo "{
+        email contact@earthfast.com
+        auto_https disable_redirects
+        
+        (trusted_proxy_list) {
+          trusted_proxies static private_ranges
+          trusted_proxies_strict
+        }
+
+        :80 {
+          @localtest {
+            host localhost
+            host 127.0.0.1
+          }
+          handle @localtest {
+            reverse_proxy content-node:5000
+          }
+          handle {
+            reverse_proxy content-node:5000 {
+              header_up X-Real-IP {remote}
+              header_up X-Forwarded-Proto {scheme}
+            }
+          }
+        }
+
+        ${SERVER_NAME} {
+          reverse_proxy content-node:5000 {
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-Proto {scheme}
+          }
+        }
+      }" > /etc/caddy/Caddyfile && caddy run --config /etc/caddy/Caddyfile'
     environment:
       - SERVER_NAME
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped
+    depends_on:
+      - content-node
     networks:
       - content_network
 

@@ -9,15 +9,13 @@ services:
       - caddy_config:/config
     command: >
       sh -c 'echo "{
-        ${SERVER_NAME} {
+        :80 {
           reverse_proxy content-node:5000 {
             header_up X-Real-IP {remote}
             header_up X-Forwarded-Proto {scheme}
           }
         }
       }" > /etc/caddy/Caddyfile && caddy run --config /etc/caddy/Caddyfile'
-    environment:
-      - SERVER_NAME
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped
@@ -38,6 +36,8 @@ services:
     volumes:
       - ${DATABASE_DIR}:/data/database
       - ${HOSTING_CACHE_DIR}:/data/hosting_cache
+    ports:
+      - "127.0.0.1:5000:5000"
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"

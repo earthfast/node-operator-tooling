@@ -10,10 +10,9 @@ services:
     command: >
       sh -c 'echo "{
         admin off
+        auto_https disable_redirects
       }
-      localhost {
-        reverse_proxy content-node:5000
-      }
+
       ${SERVER_NAME} {
         reverse_proxy content-node:5000
       }" > /etc/caddy/Caddyfile && caddy run --config /etc/caddy/Caddyfile'

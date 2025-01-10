@@ -9,7 +9,13 @@ services:
       - caddy_config:/config
     command: >
       sh -c 'echo "{
-        :80, :443 {
+        :80 {
+          reverse_proxy content-node:5000 {
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-Proto {scheme}
+          }
+        }
+        :443 {
           reverse_proxy content-node:5000 {
             header_up X-Real-IP {remote}
             header_up X-Forwarded-Proto {scheme}

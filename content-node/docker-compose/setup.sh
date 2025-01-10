@@ -100,7 +100,7 @@ AUTO_UPGRADE="false"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-    --help|-h) usage ;;
+    --help | -h) usage ;;
     --staging) ENVIRONMENT="staging" ;;
     --auto-upgrade) AUTO_UPGRADE="true" ;;
     *)
@@ -141,46 +141,16 @@ fi
 CONTRACT_ADDRESS=$([ "$ENVIRONMENT" = "staging" ] && echo "0x69e4aa095489E8613B4C4d396DD916e66D66aE23" || echo "0xb1c5F9914648403cb32a4f83B0fb946E5f7702CC")
 log_info "Using contract address: $CONTRACT_ADDRESS"
 
-# Validation functions
-validate_input() {
-    local type=$1
-    local value=$2
-    case $type in
-    domain) [[ $value =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] ;;
-    node_id) [[ $value =~ ^0x[a-fA-F0-9]{64}$ ]] ;;
-    email) [[ $value =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] ;;
-    boolean) [[ $value =~ ^(true|false)$ ]] ;;
-    esac
-}
-
-# Get and validate inputs with a generic function
-get_validated_input() {
-    local prompt=$1
-    local type=$2
-    local value
-    while true; do
-        printf "${BLUE}%s${NC}: " "$prompt"
-        read -r value || return 1
-        value=$(echo "$value" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-        if validate_input "$type" "$value"; then
-            echo "$value"
-            break
-        else
-            log_error "Invalid input format. Please try again."
-        fi
-    done
-}
-
 # Check if .env file exists and handle setup process
 if [ -f ".env" ]; then
     log_info "Current .env file contents:"
     echo "----------------------------------------"
     cat .env
     echo "----------------------------------------"
-    
+
     log_warning "An .env file already exists!"
     read -p "Would you like to go through the .env setup process again? (y/n): " setup_again
-    
+
     if [[ ! $setup_again =~ ^[Yy]$ ]]; then
         log_info "Keeping existing .env file."
         echo
@@ -195,7 +165,7 @@ if [ -f ".env" ]; then
         fi
         exit 0
     fi
-    
+
     # Backup existing .env file
     backup_file=".env.backup.$(date +%Y%m%d_%H%M%S)"
     mv .env "$backup_file"
@@ -206,7 +176,6 @@ fi
 log_info "Please provide the following information:"
 printf "\n"
 
-# Get inputs - with explicit prompts
 printf "${BLUE}Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com)${NC}: "
 read -r SERVER_NAME
 SERVER_NAME=$(echo "$SERVER_NAME" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
@@ -215,20 +184,21 @@ printf "${BLUE}Enter your node ID (e.g., 0xb10e2d52...)${NC}: "
 read -r NODE_ID
 NODE_ID=$(echo "$NODE_ID" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 
-printf "${BLUE}Do you want to set up SSL? (true/false)${NC}: "
-read -r SETUP_SSL
-SETUP_SSL=$(echo "$SETUP_SSL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-
-printf "${BLUE}Enter your certbot email${NC}: "
+printf "${BLUE}Enter your email for SSL certificates${NC}: "
 read -r CERTBOT_EMAIL
 CERTBOT_EMAIL=$(echo "$CERTBOT_EMAIL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 
-check_ports_and_ip() {
-    local ports=("80" "443")
-    local ip=$(curl -s ifconfig.me)
-    local success=true
+# Verify FQDN points to correct IP
+log_info "Verifying FQDN..."
+if ! verify_fqdn "$SERVER_NAME"; then
+    log_error "FQDN verification failed. Exiting..."
+    exit 1
+fi
 
-    # Check if ports are open
+# Check ports
+check_ports() {
+    local ports=("80" "443")
+    local success=true
     for port in "${ports[@]}"; do
         if netstat -tuln | grep -q ":$port "; then
             log_error "Port $port is already in use"
@@ -238,38 +208,18 @@ check_ports_and_ip() {
         fi
     done
 
-    # Check if ports are accessible from outside
-    # log_info "Checking port accessibility from external service..."
-    # for port in "${ports[@]}"; do
-    #     if curl -s "https://ports.yougetsignal.com/check-port.php" \
-    #         -H "User-Agent: Mozilla/5.0" \
-    #         --data-raw "remoteAddress=${ip}&portNumber=${port}" \
-    #         | grep -q "open"; then
-    #         log_success "Port $port is accessible from outside"
-    #     else
-    #         log_warning "Port $port might be blocked by firewall"
-    #         success=false
-    #     fi
-    # done
+    # TODO: Check if ports are accessible from outside
 
     return $([[ "$success" == "true" ]] && echo 0 || echo 1)
 }
 
-if [ "$SETUP_SSL" = "true" ]; then
-    log_info "Verifying FQDN..."
-    if ! verify_fqdn "$SERVER_NAME"; then
-        log_error "FQDN verification failed. Exiting..."
+log_info "Checking ports..."
+if ! check_ports; then
+    log_error "Port check failed. Please ensure ports 80 and 443 are open and available."
+    read -p "Continue anyway? (y/n): " continue
+    if [[ ! $continue =~ ^[Yy]$ ]]; then
+        log_error "Setup cancelled due to port verification failure."
         exit 1
-    fi
-
-    log_info "Checking ports for SSL..."
-    if ! check_ports_and_ip; then
-        log_error "Port check failed. Please ensure ports 80 and 443 are open and available."
-        read -p "Continue anyway? (y/n): " continue
-        if [[ ! $continue =~ ^[Yy]$ ]]; then
-            log_error "Setup cancelled due to port verification failure."
-            exit 1
-        fi
     fi
 fi
 
@@ -278,7 +228,6 @@ log_info "Creating .env file..."
 cat >.env <<EOF
 SERVER_NAME=$SERVER_NAME
 NODE_ID=$NODE_ID
-SETUP_SSL=$SETUP_SSL
 CERTBOT_EMAIL=$CERTBOT_EMAIL
 RPC_URL=https://eth-sepolia.g.alchemy.com/v2/7xFp9qkRZTVC7CvUHODk7TgyemLtkzxt
 CONTRACT_ADDRESS=$CONTRACT_ADDRESS

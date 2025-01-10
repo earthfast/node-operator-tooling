@@ -1,66 +1,32 @@
 services:
-  nginx:
-    image: nginx:latest
+  caddy:
+    image: caddy:2.9
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./letsencrypt:/etc/letsencrypt
-      - ./webroot:/var/www/certbot
-      - ./nginx-entrypoint.sh:/docker-entrypoint.d/40-config-nginx.sh:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    command: >
+      sh -c 'echo "{
+        admin off
+      }
+
+      http://localhost:80 {
+        reverse_proxy content-node:5000
+      }
+      http://${SERVER_NAME}, https://${SERVER_NAME} {
+        reverse_proxy content-node:5000
+      }" > /etc/caddy/Caddyfile && caddy run --config /etc/caddy/Caddyfile'
     environment:
-      - SERVER_NAME=${SERVER_NAME}
-      - SETUP_SSL=${SETUP_SSL:-false}
+      - SERVER_NAME
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - ./letsencrypt:/etc/letsencrypt
-      - ./webroot:/var/www/certbot
-    entrypoint: sh
-    command: >
-      -c '
-      if [ "$SETUP_SSL" != "true" ]; then
-        echo "SSL setup not enabled, skipping certbot"
-        exit 0
-      fi;
-      certbot certonly --webroot --webroot-path=/var/www/certbot 
-      --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email 
-      --force-renewal -d ${SERVER_NAME}'
-    environment:
-      - SETUP_SSL=${SETUP_SSL:-false}
     depends_on:
-      - nginx
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-
-  cert-handler:
-    image: docker:cli
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./letsencrypt:/etc/letsencrypt:ro
-    entrypoint: sh
-    command: >
-      -c '
-      if [ "$SETUP_SSL" != "true" ]; then
-        echo "SSL setup not enabled, skipping cert handler"
-        exit 0
-      fi;
-      while ! test -f /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem; do
-        sleep 1;
-      done;
-      sleep 1;
-      NGINX_CONTAINER=$$(docker ps -q -f name=nginx); docker restart $$NGINX_CONTAINER;
-      echo "Nginx restarted successfully"'
-    environment:
-      - SETUP_SSL=${SETUP_SSL:-false}
-      - SERVER_NAME=${SERVER_NAME}
-    depends_on:
-      certbot:
-        condition: service_completed_successfully
+      - content-node
+    networks:
+      - content_network
 
   content-node:
     image: earthfast/content-node:09347bad740a7881915b31143458482abb1cb75b
@@ -77,6 +43,8 @@ services:
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - content_network
 
   watchtower:
     profiles:
@@ -90,6 +58,13 @@ services:
       - WATCHTOWER_POLL_INTERVAL=60
     command: --interval 60 --cleanup --include-restarting
     restart: unless-stopped
+    networks:
+      - content_network
+
+networks:
+  content_network:
+    driver: bridge
 
 volumes:
-  letsencrypt:
+  caddy_data:
+  caddy_config:

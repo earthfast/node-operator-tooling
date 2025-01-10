@@ -100,7 +100,7 @@ AUTO_UPGRADE="false"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-    --help|-h) usage ;;
+    --help | -h) usage ;;
     --staging) ENVIRONMENT="staging" ;;
     --auto-upgrade) AUTO_UPGRADE="true" ;;
     *)

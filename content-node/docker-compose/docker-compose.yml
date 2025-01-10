@@ -11,11 +11,6 @@ services:
       sh -c 'echo "{
         email contact@earthfast.com
         auto_https disable_redirects
-        
-        (trusted_proxy_list) {
-          trusted_proxies static private_ranges
-          trusted_proxies_strict
-        }
 
         :80 {
           @localtest {

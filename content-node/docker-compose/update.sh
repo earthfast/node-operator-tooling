@@ -39,16 +39,17 @@ if [ -n "$1" ]; then
     
     # Update docker-compose.yml with new image tag
     log "Updating docker-compose.yml with new image tag..."
-    sed -i "s|earthfast/content-node:.*|earthfast/content-node:${COMMIT_HASH}|g" docker-compose.yml
+    sed -i "s|earthfast/content-node:.*|earthfast/content-node:${COMMIT_HASH}|" docker-compose.yml
     check_status "Update image tag in docker-compose.yml"
 else
     # Extract current hash from docker-compose.yml
-    CURRENT_HASH=$(grep "earthfast/content-node:" docker-compose.yml | sed 's/.*earthfast\/content-node:\(.*\)"/\1/')
-    log "Using existing commit hash from docker-compose.yml: $CURRENT_HASH"
+    CURRENT_HASH=$(grep -A1 "image: earthfast/content-node:" docker-compose.yml | tail -n1 | awk '{print $NF}')
+    log "Using existing commit hash: $CURRENT_HASH"
 fi
 
 # Verify the image tag
 HASH_TO_USE=${COMMIT_HASH:-$CURRENT_HASH}
+log "Verifying image tag..."
 grep "earthfast/content-node:${HASH_TO_USE}" docker-compose.yml > /dev/null
 check_status "Verify image tag in docker-compose.yml"
 

@@ -42,8 +42,15 @@ if [ -n "$1" ]; then
     sed -i "s|earthfast/content-node:.*|earthfast/content-node:${COMMIT_HASH}|" docker-compose.yml
     check_status "Update image tag in docker-compose.yml"
 else
-    # Extract current hash from docker-compose.yml
-    CURRENT_HASH=$(grep "earthfast/content-node:" docker-compose.yml | sed 's/.*earthfast\/content-node:\([^ ]*\).*/\1/')
+    CURRENT_HASH=$(grep "image: earthfast/content-node:" docker-compose.yml | cut -d':' -f3)
+    CURRENT_HASH=$(echo "$CURRENT_HASH" | tr -d ' ')
+    
+    if [[ ! $CURRENT_HASH =~ ^[0-9a-f]{40}$ ]]; then
+        log "Error: Could not find valid commit hash in docker-compose.yml"
+        log "Found: $CURRENT_HASH"
+        exit 1
+    fi
+    
     log "Using existing commit hash: $CURRENT_HASH"
 fi
 

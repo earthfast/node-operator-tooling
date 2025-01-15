@@ -43,7 +43,7 @@ if [ -n "$1" ]; then
     check_status "Update image tag in docker-compose.yml"
 else
     # Extract current hash from docker-compose.yml
-    CURRENT_HASH=$(grep -A1 "image: earthfast/content-node:" docker-compose.yml | tail -n1 | awk '{print $NF}')
+    CURRENT_HASH=$(grep "earthfast/content-node:" docker-compose.yml | sed 's/.*earthfast\/content-node:\([^ ]*\).*/\1/')
     log "Using existing commit hash: $CURRENT_HASH"
 fi
 

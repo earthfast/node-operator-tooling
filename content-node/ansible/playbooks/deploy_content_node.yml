@@ -1,0 +1,139 @@
+---
+- name: Deploy Content Node Infrastructure
+  hosts: localhost
+  vars:
+    environment: "{{ env | default('staging') }}"
+    aws_region: "{{ region | default('us-east-2') }}"
+  
+  pre_tasks:
+    - name: Verify required environment variables
+      assert:
+        that:
+          - lookup('env', 'AWS_ACCESS_KEY_ID') != ''
+          - lookup('env', 'AWS_SECRET_ACCESS_KEY') != ''
+          - lookup('env', 'CF_EMAIL') != ''
+          - lookup('env', 'CF_TOKEN') != ''
+        fail_msg: "Missing required environment variables"
+
+  tasks:
+    - name: Set environment specific variables
+      set_fact:
+        security_group: "content-{{ environment }}"
+        subdomain_prefix: "{{ 'sepolia-staging' if environment == 'staging' else 'sepolia' }}"
+
+    - name: Create EC2 instance
+      amazon.aws.ec2_instance:
+        name: "content-node-{{ environment }}-{{ ansible_date_time.epoch }}"
+        instance_type: "{{ instance_type }}"
+        image_id: "{{ ami_id }}"
+        security_group: "{{ security_group }}"
+        vpc_subnet_id: "{{ vpc_subnet_id }}"
+        region: "{{ aws_region }}"
+        wait: yes
+        tags:
+          Environment: "{{ environment }}"
+          Service: content-node
+          Name: "content-node-{{ environment }}"
+          CreatedBy: ansible
+      register: ec2
+
+    - name: Wait for instance to be ready
+      wait_for:
+        host: "{{ ec2.instances[0].public_ip_address }}"
+        port: 22
+        timeout: 300
+        state: started
+      register: wait_result
+      retries: 3
+      delay: 10
+      
+    - name: Generate node number
+      set_fact:
+        node_number: "{{ range(1, 100) | random }}"
+
+    - name: Set FQDN
+      set_fact:
+        fqdn: "content-{{ node_number }}.{{ aws_region }}.{{ subdomain_prefix }}.{{ cf_zone }}"
+
+    - name: Create DNS record in Cloudflare
+      cloudflare_dns:
+        zone: "{{ cf_zone }}"
+        record: "{{ fqdn }}"
+        type: A
+        value: "{{ ec2.instances[0].public_ip_address }}"
+        account_email: "{{ cloudflare_email }}"
+        account_api_token: "{{ cloudflare_token }}"
+        state: present
+      register: dns_result
+      retries: 3
+      delay: 10
+
+    - name: Add host to inventory
+      add_host:
+        name: "{{ ec2.instances[0].public_ip_address }}"
+        groups: new_nodes
+        ansible_user: ubuntu
+        ansible_ssh_private_key_file: "~/.ssh/content-{{ environment }}.pem"
+        fqdn: "{{ fqdn }}"
+
+- name: Configure Content Node
+  hosts: new_nodes
+  become: yes
+  
+  tasks:
+    - name: Install required packages
+      apt:
+        name: 
+          - docker.io
+          - python3-pip
+          - git
+        update_cache: yes
+        state: present
+
+    - name: Install Docker Python module
+      pip:
+        name: docker
+        state: present
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Clone repository
+      git:
+        repo: https://github.com/earthfast/node-operator-tooling
+        dest: /home/ubuntu/node-operator-tooling
+      become_user: ubuntu
+
+    - name: Create .env file
+      template:
+        src: templates/env.j2
+        dest: /home/ubuntu/node-operator-tooling/content-node/docker-compose/.env
+        mode: '0600'
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Start content node
+      community.docker.docker_compose:
+        project_src: /home/ubuntu/node-operator-tooling/content-node/docker-compose
+        state: present
+      become_user: ubuntu
+
+    - name: Wait for content node to be ready
+      uri:
+        url: "http://localhost/statusz"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 6
+      delay: 10
+      until: health_check.status == 200
+
+    - name: Output node information
+      debug:
+        msg:
+          - "Node deployed successfully"
+          - "FQDN: {{ fqdn }}"
+          - "IP: {{ ansible_host }}"

@@ -5,19 +5,10 @@ aws_regions:
 
 # AWS configuration
 instance_type: t2.medium
-ami_id: ami-0c7217cdde317cfec
+ami_id: ami-0430580de6244e02e
 vpc_subnet_id: "{{ lookup('env', 'VPC_SUBNET_ID') }}"
 
 # Domain configuration
 cf_zone: earthfastnodes.com
 cloudflare_email: "{{ lookup('env', 'CF_EMAIL') }}"
 cloudflare_token: "{{ lookup('env', 'CF_TOKEN') }}"
-
-# Node configuration
-rpc_url: "https://eth-sepolia.g.alchemy.com/v2/7xFp9qkRZTVC7CvUHODk7TgyemLtkzxt"
-docker_image: earthfast/content-node:0694289d574595a44f5a81b7aabafb17bf1d314f
-
-# Contract addresses
-contract_addresses:
-  staging: "0x69e4aa095489E8613B4C4d396DD916e66D66aE23"
-  testnet: "0xb1c5F9914648403cb32a4f83B0fb946E5f7702CC"

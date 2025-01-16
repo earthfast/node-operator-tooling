@@ -1,8 +1,10 @@
 ---
 - name: Deploy Content Node Infrastructure
   hosts: localhost
+  vars_files:
+    - ../group_vars/all.yml
   vars:
-    environment: "{{ env | default('staging') }}"
+    env_name: "{{ env | default('staging') }}"
     aws_region: "{{ region | default('us-east-2') }}"
   
   pre_tasks:
@@ -18,22 +20,23 @@
   tasks:
     - name: Set environment specific variables
       set_fact:
-        security_group: "content-{{ environment }}"
-        subdomain_prefix: "{{ 'sepolia-staging' if environment == 'staging' else 'sepolia' }}"
+        security_group: "content-{{ env_name }}"
+        subdomain_prefix: "{{ 'sepolia-staging' if env_name == 'staging' else 'sepolia' }}"
 
     - name: Create EC2 instance
       amazon.aws.ec2_instance:
-        name: "content-node-{{ environment }}-{{ ansible_date_time.epoch }}"
+        name: "content-node-{{ env_name }}-{{ ansible_date_time.epoch }}"
         instance_type: "{{ instance_type }}"
         image_id: "{{ ami_id }}"
         security_group: "{{ security_group }}"
         vpc_subnet_id: "{{ vpc_subnet_id }}"
         region: "{{ aws_region }}"
+        key_name: "content-{{ env_name }}"
         wait: yes
         tags:
-          Environment: "{{ environment }}"
+          Environment: "{{ env_name }}"
           Service: content-node
-          Name: "content-node-{{ environment }}"
+          Name: "content-node-{{ env_name }}"
           CreatedBy: ansible
       register: ec2
 
@@ -47,9 +50,9 @@
       retries: 3
       delay: 10
       
-    - name: Generate node number
+    - name: Generate node identifier from timestamp
       set_fact:
-        node_number: "{{ range(1, 100) | random }}"
+        node_number: "{{ ansible_date_time.epoch }}"
 
     - name: Set FQDN
       set_fact:
@@ -73,7 +76,7 @@
         name: "{{ ec2.instances[0].public_ip_address }}"
         groups: new_nodes
         ansible_user: ubuntu
-        ansible_ssh_private_key_file: "~/.ssh/content-{{ environment }}.pem"
+        ansible_ssh_private_key_file: "~/.ssh/content-{{ env_name }}.pem"
         fqdn: "{{ fqdn }}"
 
 - name: Configure Content Node
@@ -107,16 +110,14 @@
         dest: /home/ubuntu/node-operator-tooling
       become_user: ubuntu
 
-    - name: Create .env file
-      template:
-        src: templates/env.j2
-        dest: /home/ubuntu/node-operator-tooling/content-node/docker-compose/.env
-        mode: '0600'
-        owner: ubuntu
-        group: ubuntu
+    - name: Run setup script
+      shell: |
+        cd /home/ubuntu/node-operator-tooling/content-node/docker-compose
+        echo -e "{{ fqdn }}\nTODO_REGISTRATION\nfalse\nops@earthfast.com" | ./setup.sh
+      become_user: ubuntu
 
     - name: Start content node
-      community.docker.docker_compose:
+      community.docker.docker_compose_v2:
         project_src: /home/ubuntu/node-operator-tooling/content-node/docker-compose
         state: present
       become_user: ubuntu

@@ -58,6 +58,15 @@
       set_fact:
         fqdn: "content-{{ node_number }}.{{ aws_region }}.{{ subdomain_prefix }}.{{ cf_zone }}"
 
+    - name: Set global facts
+      set_fact:
+        global_env_name: "{{ env_name }}"
+        global_fqdn: "{{ fqdn }}"
+        global_private_key: "{{ private_key }}"
+        global_operator_id: "{{ operator_id }}"
+        global_node_region: "{{ node_region }}"
+        cache: yes
+
     - name: Create DNS record in Cloudflare
       cloudflare_dns:
         zone: "{{ cf_zone }}"
@@ -82,32 +91,41 @@
 - name: Configure Content Node
   hosts: new_nodes
   become: yes
+  vars_files:
+    - ../group_vars/all.yml
   
   tasks:
-    - name: Install required packages
-      apt:
-        name: 
-          - docker.io
-          - python3-pip
-          - git
-        update_cache: yes
-        state: present
+    - name: Clone repository
+      git:
+        repo: https://github.com/earthfast/node-operator-tooling
+        dest: /home/ubuntu/node-operator-tooling
+      become_user: ubuntu
 
-    - name: Install Docker Python module
-      pip:
-        name: docker
-        state: present
+    - name: Register node using CLI
+      delegate_to: localhost
+      become: no
+      shell: |
+        cd ../../../
+        python3 content-node/content-node-register.py << EOF
+        {{ hostvars['localhost']['global_env_name'] }}
+        {{ hostvars['localhost']['global_private_key'] }}
+        {{ hostvars['localhost']['global_fqdn'] }}
+        {{ hostvars['localhost']['global_operator_id'] }}
+        {{ hostvars['localhost']['global_node_region'] }}
+        EOF
+      register: registration_output
 
-    - name: Add ubuntu user to docker group
-      user:
-        name: ubuntu
-        groups: docker
-        append: yes
+    - name: Extract node ID from registration
+      delegate_to: localhost
+      become: no
+      set_fact:
+        node_id: "{{ registration_output.stdout | regex_search('nodeId: ([0-9a-fx]+)', '\\1') | first }}"
 
-    - name: Restart docker service
-      systemd:
-        name: docker
-        state: restarted
+    - name: Run setup script with registered node ID
+      shell: |
+        cd /home/ubuntu/node-operator-tooling/content-node/docker-compose
+        printf "%s\n%s\n%s\n%s\n" "{{ hostvars['localhost']['global_fqdn'] }}" "{{ node_id }}" "false" "ops@earthfast.com" | ./setup.sh
+      become_user: ubuntu
 
     - name: Reset ssh connection to allow new group to take effect
       meta: reset_connection
@@ -116,18 +134,6 @@
       wait_for_connection:
         delay: 10
         timeout: 300
-
-    - name: Clone repository
-      git:
-        repo: https://github.com/earthfast/node-operator-tooling
-        dest: /home/ubuntu/node-operator-tooling
-      become_user: ubuntu
-
-    - name: Run setup script
-      shell: |
-        cd /home/ubuntu/node-operator-tooling/content-node/docker-compose
-        printf "%s\n%s\n%s\n%s\n" "{{ fqdn }}" "TODO_REGISTRATION" "false" "ops@earthfast.com" | ./setup.sh
-      become_user: ubuntu
 
     - name: Start content node
       community.docker.docker_compose_v2:
@@ -149,5 +155,5 @@
       debug:
         msg:
           - "Node deployed successfully"
-          - "FQDN: {{ fqdn }}"
+          - "FQDN: {{ hostvars['localhost']['global_fqdn'] }}"
           - "IP: {{ ansible_host }}"

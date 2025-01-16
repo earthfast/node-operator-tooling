@@ -30,6 +30,33 @@ pip3 install ansible
 ### Available Playbooks
 Below are the available playbooks and their descriptions:
 
+#### deploy_content_node.yml
+Creates and configures a new content node:
+- Launches EC2 instance with proper tags and security group
+- Sets up DNS record with Cloudflare
+- Installs dependencies and Docker
+- Deploys content node service
+
+Required environment variables:
+```shell
+AWS_ACCESS_KEY_ID=your_aws_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret
+CF_EMAIL=your_cloudflare_email
+CF_TOKEN=your_cloudflare_api_token
+VPC_SUBNET_ID=your_subnet_id
+```
+
+Usage:
+```sh
+# Deploy to staging
+ansible-playbook playbooks/deploy_content_node.yml -e "env=staging region=us-east-2"
+
+# Deploy to testnet
+ansible-playbook playbooks/deploy_content_node.yml -e "env=testnet region=us-east-2"
+```
+
+Note: Ensure your SSH key is present at ~/.ssh/content-{environment}.pem
+
 #### git_pull_restart.yml
 Updates content nodes to the latest version and restarts services:
 - Pulls the latest code from the repository

@@ -39,11 +39,14 @@ Creates and configures a new content node:
 
 Required environment variables:
 ```shell
-AWS_ACCESS_KEY_ID=your_aws_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret
-CF_EMAIL=your_cloudflare_email
-CF_TOKEN=your_cloudflare_api_token
-VPC_SUBNET_ID=your_subnet_id
+# AWS Configuration
+export AWS_ACCESS_KEY_ID="ABC123[...]"
+export AWS_SECRET_ACCESS_KEY="abc123[...]/abc123[...]"
+export VPC_SUBNET_ID="subnet-123abc[...]"
+
+# Cloudflare Configuration
+export CF_EMAIL="you@earthfast.com"
+export CF_TOKEN="123abc[...]"
 ```
 
 Usage:

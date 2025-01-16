@@ -113,7 +113,7 @@
     - name: Run setup script
       shell: |
         cd /home/ubuntu/node-operator-tooling/content-node/docker-compose
-        echo -e "{{ fqdn }}\nTODO_REGISTRATION\nfalse\nops@earthfast.com" | ./setup.sh
+        printf "%s\n%s\n%s\n%s\n" "{{ fqdn }}" "TODO_REGISTRATION" "false" "ops@earthfast.com" | ./setup.sh
       become_user: ubuntu
 
     - name: Start content node

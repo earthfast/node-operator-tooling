@@ -16,5 +16,3 @@ cloudflare_token: "{{ lookup('env', 'CF_TOKEN') }}"
 operator_id: "{{ lookup('env', 'OPERATOR_ID') }}"
 private_key: "{{ lookup('env', 'PRIVATE_KEY') }}"
 node_region: "{{ lookup('env', 'NODE_REGION', default='us') }}"
-stake_amount: 100
-node_price: 1.0

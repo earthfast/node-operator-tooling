@@ -104,6 +104,19 @@
         groups: docker
         append: yes
 
+    - name: Restart docker service
+      systemd:
+        name: docker
+        state: restarted
+
+    - name: Reset ssh connection to allow new group to take effect
+      meta: reset_connection
+
+    - name: Wait for instance to be ready after reset
+      wait_for_connection:
+        delay: 10
+        timeout: 300
+
     - name: Clone repository
       git:
         repo: https://github.com/earthfast/node-operator-tooling

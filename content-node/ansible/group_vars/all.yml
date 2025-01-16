@@ -1,7 +1,6 @@
 ---
 aws_regions:
   - us-east-2
-  - us-west-2
 
 # AWS configuration
 instance_type: t2.medium

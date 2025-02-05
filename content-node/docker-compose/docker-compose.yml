@@ -29,7 +29,7 @@ services:
       - content_network
 
   content-node:
-    image: earthfast/content-node:ec50ed2ed818908afe692c7ba16235bc943d8e7f
+    image: earthfast/content-node:95820480d057206d04a2ad30b3e031d088969cf6
     environment:
       - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
       - DATABASE_DIR=/data/database

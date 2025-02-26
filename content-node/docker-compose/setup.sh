@@ -229,7 +229,7 @@ cat >.env <<EOF
 SERVER_NAME=$SERVER_NAME
 NODE_ID=$NODE_ID
 CERTBOT_EMAIL=$CERTBOT_EMAIL
-RPC_URL=https://eth-sepolia.g.alchemy.com/v2/7xFp9qkRZTVC7CvUHODk7TgyemLtkzxt
+RPC_URL=https://eth-sepolia.g.alchemy.com/v2/5opzBW-mCA1jMP0Z5mC1NIDJn_O3edas
 CONTRACT_ADDRESS=$CONTRACT_ADDRESS
 HOSTING_CACHE_DIR=/hosting_cache
 DATABASE_DIR=/db_data

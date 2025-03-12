@@ -31,10 +31,14 @@ Confirm success by curling the `/statusz` endpoint:
 
 ## Updates
 
-To update your Content Node, pull the latest changes and restart:
+It's recommended that you enable auto upgrades so you get new version automatically
+```
+(crontab -l ; echo "0 4 * * * $(pwd)/auto-upgrade.sh")| crontab -
+```
+
+To manually update your Content Node, pull the latest changes and restart:
 ```sh
-git pull
-docker compose up -d
+sh update.sh <optional node-operator-tooling/ sha>
 ```
 
 ## Useful Docker Compose Commands
@@ -50,9 +54,7 @@ docker compose logs
 docker compose logs -f <path/to/docker-compose.yml>
 
 # Check logs of a specific container
-docker compose logs nginx
-docker compose logs certbot
-docker compose logs content-node
+docker compose logs <container-name>
 
 # Stop all containers
 docker compose down

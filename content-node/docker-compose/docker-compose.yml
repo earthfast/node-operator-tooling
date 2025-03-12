@@ -20,8 +20,6 @@ services:
       }" > /etc/caddy/Caddyfile && caddy run --config /etc/caddy/Caddyfile'
     environment:
       - SERVER_NAME
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped
     depends_on:
       - content-node
@@ -40,23 +38,6 @@ services:
     volumes:
       - ${DATABASE_DIR}:/data/database
       - ${HOSTING_CACHE_DIR}:/data/hosting_cache
-    restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - content_network
-
-  watchtower:
-    profiles:
-      - autoupdate
-    image: containrrr/watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_INCLUDE_STOPPED=false
-      - WATCHTOWER_POLL_INTERVAL=60
-    command: --interval 60 --cleanup --include-restarting
     restart: unless-stopped
     networks:
       - content_network

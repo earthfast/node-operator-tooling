@@ -5,6 +5,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 LOG_FILE="$SCRIPT_DIR/logs/git-auto-upgrade.log"
+mkdir -p "$SCRIPT_DIR/logs"
+if [ ! -f "$LOG_FILE" ]; then
+  touch "$LOG_FILE"
+fi
+
 echo "=== Starting auto-upgrade at $(date) ===" >> "$LOG_FILE"
 
 if [ ! -d "$SCRIPT_DIR" ]; then
@@ -18,12 +23,8 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
 fi
 
 # Update repository
-if [ -d .git ]; then
-  git fetch origin
-  git reset --hard origin/main
-else
-  git clone "https://github.com/earthfast/node-operator-tooling" .
-fi
+git fetch origin
+git reset --hard origin/main
 
 # Restore .env
 if [ -f /tmp/.env.backup ]; then

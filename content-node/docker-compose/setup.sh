@@ -184,10 +184,6 @@ printf "${BLUE}Enter your node ID (e.g., 0xb10e2d52...)${NC}: "
 read -r NODE_ID
 NODE_ID=$(echo "$NODE_ID" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 
-printf "${BLUE}Enter your email for SSL certificates${NC}: "
-read -r CERTBOT_EMAIL
-CERTBOT_EMAIL=$(echo "$CERTBOT_EMAIL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-
 # Verify FQDN points to correct IP
 log_info "Verifying FQDN..."
 if ! verify_fqdn "$SERVER_NAME"; then
@@ -228,7 +224,6 @@ log_info "Creating .env file..."
 cat >.env <<EOF
 SERVER_NAME=$SERVER_NAME
 NODE_ID=$NODE_ID
-CERTBOT_EMAIL=$CERTBOT_EMAIL
 RPC_URL=https://eth-sepolia.g.alchemy.com/v2/5opzBW-mCA1jMP0Z5mC1NIDJn_O3edas
 CONTRACT_ADDRESS=$CONTRACT_ADDRESS
 HOSTING_CACHE_DIR=/hosting_cache

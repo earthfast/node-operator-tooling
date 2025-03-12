@@ -17,7 +17,6 @@ The `setup.sh` script will prompt you for environment variables:
 * `SERVER_NAME` = your node's FQDN (details in [Setup Docs – Create the FQDN](https://docs.earthfast.com/node-operators/content-node-setup#create-the-fqdn-fully-qualified-domain-name), eg. `content0.us-east-2.testnet-sepolia.earthfast.operator.com`)
 * `NODE_ID` = the `NodeID` generated in [Setup Docs – Register your Node(s) onchain](https://docs.earthfast.com/node-operators/content-node-setup#register-your-node-s-onchain)
 * `SETUP_SSL` = if you have configured HTTPS/SSL externally, set this to `false`. Setting it to true will locally configure SSL with Let's Encrypt. Make sure the url from SERVER_NAME is correctly pointed to your server's IP address before enabling this option.
-* `CERTBOT_EMAIL` = If SETUP_SSL=true, this email will be used for SSL certificate renewal / management emails
 
 Confirm success by curling the `/statusz` endpoint:
 ```sh

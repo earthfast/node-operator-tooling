@@ -23,16 +23,18 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
 fi
 
 # Check for git changes
+cd "$SCRIPT_DIR"
+BRANCH_NAME="dm-cn-autoupgrade" # TODO: switch back to main after testing
 git fetch origin
 LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/dm-cn-autoupgrade)
-# TODO: switch back to main after testing
+REMOTE=$(git rev-parse origin/$BRANCH_NAME)
+
 
 if [ "$LOCAL" != "$REMOTE" ]; then
   echo "Changes detected, updating repository..." >> "$LOG_FILE"
   
   # Update repository
-  git reset --hard origin/main
+  git reset --hard origin/$BRANCH_NAME
 
   # Restore .env
   if [ -f /tmp/.env.backup ]; then
@@ -42,7 +44,6 @@ if [ "$LOCAL" != "$REMOTE" ]; then
   fi
 
   # Docker operations
-  cd "$SCRIPT_DIR"
   COMPOSE_FILE=$(ls docker-compose.y*ml 2>/dev/null | head -n 1)
 
   if [ -z "$COMPOSE_FILE" ]; then

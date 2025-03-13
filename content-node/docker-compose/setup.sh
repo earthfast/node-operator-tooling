@@ -9,9 +9,10 @@ NC='\033[0m' # No Color
 
 # Usage function
 usage() {
-    echo "Usage: $0 [--staging] [--auto-upgrade]"
-    echo "  --staging      Use staging environment"
-    echo "  --auto-upgrade Enable automatic updates using Watchtower"
+    echo "Usage: $0 [--staging]"
+    echo "  --staging        Use staging environment"
+    echo "  --auto-upgrade   Enable automatic updates"
+    echo "  --skip-env-setup Skip the .env setup process"
     exit 1
 }
 
@@ -75,8 +76,6 @@ install_dependencies() {
     fi
 }
 
-install_dependencies
-
 # Function to verify FQDN points to VM IP
 verify_fqdn() {
     local fqdn=$1
@@ -94,15 +93,34 @@ verify_fqdn() {
     fi
 }
 
+# Check ports
+check_ports() {
+    local ports=("80" "443")
+    local success=true
+    for port in "${ports[@]}"; do
+        if netstat -tuln | grep -q ":$port "; then
+            log_error "Port $port is already in use"
+            success=false
+        else
+            log_success "Port $port is available"
+        fi
+    done
+
+    # TODO: Check if ports are accessible from outside
+
+    return $([[ "$success" == "true" ]] && echo 0 || echo 1)
+}
+
 # Parse command line arguments
 ENVIRONMENT="testnet"
-AUTO_UPGRADE="false"
+ENV_SETUP="true"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
     --help | -h) usage ;;
     --staging) ENVIRONMENT="staging" ;;
     --auto-upgrade) AUTO_UPGRADE="true" ;;
+    --skip-env-setup) ENV_SETUP="false" ;;
     *)
         log_error "Unknown parameter: $1"
         usage
@@ -112,9 +130,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 log_info "Starting setup process..."
-if [ "$AUTO_UPGRADE" = "true" ]; then
-    log_info "Auto-upgrade is enabled"
-fi
+
+install_dependencies
 
 # Check and install Docker if needed
 if ! command -v docker &>/dev/null; then
@@ -139,10 +156,10 @@ fi
 
 # Set contract address based on environment
 CONTRACT_ADDRESS=$([ "$ENVIRONMENT" = "staging" ] && echo "0x69e4aa095489E8613B4C4d396DD916e66D66aE23" || echo "0xb1c5F9914648403cb32a4f83B0fb946E5f7702CC")
-log_info "Using contract address: $CONTRACT_ADDRESS"
+# log_info "Using contract address: $CONTRACT_ADDRESS"
 
 # Check if .env file exists and handle setup process
-if [ -f ".env" ]; then
+if [ -f ".env" ] && [ "$ENV_SETUP" = "true" ]; then
     log_info "Current .env file contents:"
     echo "----------------------------------------"
     cat .env
@@ -151,102 +168,77 @@ if [ -f ".env" ]; then
     log_warning "An .env file already exists!"
     read -p "Would you like to go through the .env setup process again? (y/n): " setup_again
 
-    if [[ ! $setup_again =~ ^[Yy]$ ]]; then
-        log_info "Keeping existing .env file."
-        echo
-        if [ "$AUTO_UPGRADE" = "true" ]; then
-            log_info "To start the content node with auto-upgrade, use: ${GREEN}docker compose --profile autoupdate up -d${NC}"
-        else
-            log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
-        fi
-        # Remind to restart if docker group was added
-        if groups $USER | grep -q "\bdocker\b"; then
-            log_warning "Please log out and log back in for Docker group changes to take effect."
-        fi
-        exit 0
+    if [[ $setup_again =~ ^[Yy]$ ]]; then
+        # Backup existing .env file
+        backup_file=".env.backup.$(date +%Y%m%d_%H%M%S)"
+        mv .env "$backup_file"
+        log_info "Existing .env file backed up to $backup_file"
+        log_info "Proceeding with new .env setup..."
+    else
+        ENV_SETUP="false"
     fi
-
-    # Backup existing .env file
-    backup_file=".env.backup.$(date +%Y%m%d_%H%M%S)"
-    mv .env "$backup_file"
-    log_info "Existing .env file backed up to $backup_file"
-    log_info "Proceeding with new .env setup..."
 fi
 
-log_info "Please provide the following information:"
-printf "\n"
+if [ "$ENV_SETUP" = "true" ]; then
+    log_info "Please provide the following information:"
+    printf "\n"
 
-printf "${BLUE}Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com)${NC}: "
-read -r SERVER_NAME
-SERVER_NAME=$(echo "$SERVER_NAME" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+    printf "${BLUE}Enter your server name (e.g., content-1.us-east-1.sepolia.earthfastnodes.com)${NC}: "
+    read -r SERVER_NAME
+    SERVER_NAME=$(echo "$SERVER_NAME" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 
-printf "${BLUE}Enter your node ID (e.g., 0xb10e2d52...)${NC}: "
-read -r NODE_ID
-NODE_ID=$(echo "$NODE_ID" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-
-printf "${BLUE}Enter your email for SSL certificates${NC}: "
-read -r CERTBOT_EMAIL
-CERTBOT_EMAIL=$(echo "$CERTBOT_EMAIL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+    printf "${BLUE}Enter your node ID (e.g., 0xb10e2d52...)${NC}: "
+    read -r NODE_ID
+    NODE_ID=$(echo "$NODE_ID" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 
 # Verify FQDN points to correct IP
-log_info "Verifying FQDN..."
-if ! verify_fqdn "$SERVER_NAME"; then
-    log_error "FQDN verification failed. Exiting..."
-    exit 1
-fi
-
-# Check ports
-check_ports() {
-    local ports=("80" "443")
-    local success=true
-    for port in "${ports[@]}"; do
-        if netstat -tuln | grep -q ":$port "; then
-            log_error "Port $port is already in use"
-            success=false
-        else
-            log_success "Port $port is available"
-        fi
-    done
-
-    # TODO: Check if ports are accessible from outside
-
-    return $([[ "$success" == "true" ]] && echo 0 || echo 1)
-}
-
-log_info "Checking ports..."
-if ! check_ports; then
-    log_error "Port check failed. Please ensure ports 80 and 443 are open and available."
-    read -p "Continue anyway? (y/n): " continue
-    if [[ ! $continue =~ ^[Yy]$ ]]; then
-        log_error "Setup cancelled due to port verification failure."
+    log_info "Verifying FQDN..."
+    if ! verify_fqdn "$SERVER_NAME"; then
+        log_error "FQDN verification failed. Exiting..."
         exit 1
     fi
-fi
 
-# Create .env file
-log_info "Creating .env file..."
+
+    log_info "Checking ports..."
+    if ! check_ports; then
+        log_error "Port check failed. Please ensure ports 80 and 443 are open and available."
+        read -p "Continue anyway? (y/n): " continue
+        if [[ ! $continue =~ ^[Yy]$ ]]; then
+            log_error "Setup cancelled due to port verification failure."
+            exit 1
+        fi
+    fi
+
+    # Create .env file
+    log_info "Creating .env file..."
 cat >.env <<EOF
 SERVER_NAME=$SERVER_NAME
 NODE_ID=$NODE_ID
-CERTBOT_EMAIL=$CERTBOT_EMAIL
 RPC_URL=https://eth-sepolia.g.alchemy.com/v2/5opzBW-mCA1jMP0Z5mC1NIDJn_O3edas
 CONTRACT_ADDRESS=$CONTRACT_ADDRESS
 HOSTING_CACHE_DIR=/hosting_cache
 DATABASE_DIR=/db_data
-AUTO_UPGRADE=$AUTO_UPGRADE
 EOF
 
-log_success ".env file created successfully!"
-echo
-if [ "$AUTO_UPGRADE" = "true" ]; then
-    log_info "Auto-upgrade is enabled. Watchtower will:"
-    log_info "- Monitor and update Docker containers"
-    log_info "- Monitor and pull Git repository updates"
-    log_info "- Automatically restart services when updates are detected"
-    log_info "To start the content node with auto-upgrade, use: ${GREEN}docker compose --profile autoupdate up -d${NC}"
-else
-    log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
+    log_success ".env file created successfully!"
 fi
+
+CRONTAB_EXISTS=$(crontab -l | grep -q "$(pwd)/auto-upgrade.sh"; echo $?) # 0 means it's set up
+
+# if user didn't specify auto-upgrade flag and crontab is not set up, ask if they want it
+if [ "$AUTO_UPGRADE" != "true" ] && [ "$CRONTAB_EXISTS" -ne 0 ]; then
+    read -p "Would you like to enable auto-upgrade? (y/n): " auto_upgrade 
+    if [[ $auto_upgrade =~ ^[Yy]$ ]]; then
+        # will check at the top of every hour between minutes 0 and 10
+        (crontab -l ; echo "$((RANDOM % 10)) * * * * $(pwd)/auto-upgrade.sh")| crontab -
+        log_success "Auto-upgrade set up successfully!"
+    fi
+elif [ "$AUTO_UPGRADE" = "true" ] && [ "$CRONTAB_EXISTS" -ne 0 ]; then
+    (crontab -l ; echo "$((RANDOM % 10)) * * * * $(pwd)/auto-upgrade.sh")| crontab -
+    log_success "Auto-upgrade set up successfully!"
+fi
+
+log_info "To start the content node, use: ${GREEN}docker compose up -d${NC}"
 
 # Remind to restart if docker group was added
 if groups $USER | grep -q "\bdocker\b"; then

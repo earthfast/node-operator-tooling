@@ -9,9 +9,9 @@ NC='\033[0m' # No Color
 
 # Usage function
 usage() {
-    echo "Usage: $0 [--staging] [--auto-upgrade]"
+    echo "Usage: $0 [--staging]"
     echo "  --staging      Use staging environment"
-    echo "  --auto-upgrade Enable automatic updates using Watchtower"
+    echo "  --auto-upgrade Enable automatic updates"
     exit 1
 }
 
@@ -119,6 +119,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
     --help | -h) usage ;;
     --staging) ENVIRONMENT="staging" ;;
+    --auto-upgrade) AUTO_UPGRADE="true" ;;
     *)
         log_error "Unknown parameter: $1"
         usage
@@ -221,10 +222,19 @@ EOF
 fi
 
 echo
-# ask if auto-upgrade is wanted
-read -p "Would you like to enable auto-upgrade? (y/n): " auto_upgrade 
-if [[ $auto_upgrade =~ ^[Yy]$ ]]; then
-    # will check at the top of every hour between minutes 0 and 10
+
+# if user didn't specify auto-upgrade, ask if they want it
+# if they do, set up auto-upgrade
+if [ "$AUTO_UPGRADE" != "true" ]; then
+    read -p "Would you like to enable auto-upgrade? (y/n): " auto_upgrade 
+    if [[ $auto_upgrade =~ ^[Yy]$ ]]; then
+        # will check at the top of every hour between minutes 0 and 10
+        if ! crontab -l | grep -q "$(pwd)/auto-upgrade.sh"; then
+            (crontab -l ; echo "$((RANDOM % 10)) * * * * $(pwd)/auto-upgrade.sh")| crontab -
+        fi
+        log_success "Auto-upgrade set up successfully!"
+    fi
+else
     if ! crontab -l | grep -q "$(pwd)/auto-upgrade.sh"; then
         (crontab -l ; echo "$((RANDOM % 10)) * * * * $(pwd)/auto-upgrade.sh")| crontab -
     fi

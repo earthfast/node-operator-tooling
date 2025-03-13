@@ -24,7 +24,7 @@ fi
 
 # Check for git changes
 cd "$SCRIPT_DIR"
-BRANCH_NAME="dm-cn-autoupgrade" # TODO: switch back to main after testing
+BRANCH_NAME="main"
 git fetch origin
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/$BRANCH_NAME)

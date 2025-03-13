@@ -30,9 +30,9 @@ Confirm success by curling the `/statusz` endpoint:
 
 ## Updates
 
-The setup.sh script has an option to enable auto upgrading the content node, it's recommended you enable auto upgrades. You can turn this on by re-running `./setup.sh` or
+There's an option to enable auto upgrades for the content node, it's recommended you enable this so the latest features, bug fixes and updates will be deployed automatically. You can turn this on by running
 ```
-(crontab -l ; echo "* 4 * * * $(pwd)/auto-upgrade.sh")| crontab -
+./setup.sh --auto-upgrade
 ```
 
 If you want to manually update your Content Node, run the following command:

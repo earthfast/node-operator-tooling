@@ -10,8 +10,9 @@ NC='\033[0m' # No Color
 # Usage function
 usage() {
     echo "Usage: $0 [--staging]"
-    echo "  --staging      Use staging environment"
-    echo "  --auto-upgrade Enable automatic updates"
+    echo "  --staging        Use staging environment"
+    echo "  --auto-upgrade   Enable automatic updates"
+    echo "  --skip-env-setup Skip the .env setup process"
     exit 1
 }
 
@@ -75,8 +76,6 @@ install_dependencies() {
     fi
 }
 
-install_dependencies
-
 # Function to verify FQDN points to VM IP
 verify_fqdn() {
     local fqdn=$1
@@ -114,12 +113,14 @@ check_ports() {
 
 # Parse command line arguments
 ENVIRONMENT="testnet"
+ENV_SETUP="true"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
     --help | -h) usage ;;
     --staging) ENVIRONMENT="staging" ;;
     --auto-upgrade) AUTO_UPGRADE="true" ;;
+    --skip-env-setup) ENV_SETUP="false" ;;
     *)
         log_error "Unknown parameter: $1"
         usage
@@ -129,6 +130,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 log_info "Starting setup process..."
+
+install_dependencies
 
 # Check and install Docker if needed
 if ! command -v docker &>/dev/null; then
@@ -153,11 +156,10 @@ fi
 
 # Set contract address based on environment
 CONTRACT_ADDRESS=$([ "$ENVIRONMENT" = "staging" ] && echo "0x69e4aa095489E8613B4C4d396DD916e66D66aE23" || echo "0xb1c5F9914648403cb32a4f83B0fb946E5f7702CC")
-log_info "Using contract address: $CONTRACT_ADDRESS"
+# log_info "Using contract address: $CONTRACT_ADDRESS"
 
-ENV_SETUP="true"
 # Check if .env file exists and handle setup process
-if [ -f ".env" ]; then
+if [ -f ".env" ] && [ "$ENV_SETUP" = "true" ]; then
     log_info "Current .env file contents:"
     echo "----------------------------------------"
     cat .env
@@ -221,23 +223,18 @@ EOF
     log_success ".env file created successfully!"
 fi
 
-echo
+CRONTAB_EXISTS=$(crontab -l | grep -q "$(pwd)/auto-upgrade.sh"; echo $?) # 0 means it's set up
 
-# if user didn't specify auto-upgrade, ask if they want it
-# if they do, set up auto-upgrade
-if [ "$AUTO_UPGRADE" != "true" ]; then
+# if user didn't specify auto-upgrade flag and crontab is not set up, ask if they want it
+if [ "$AUTO_UPGRADE" != "true" ] && [ "$CRONTAB_EXISTS" -ne 0 ]; then
     read -p "Would you like to enable auto-upgrade? (y/n): " auto_upgrade 
     if [[ $auto_upgrade =~ ^[Yy]$ ]]; then
         # will check at the top of every hour between minutes 0 and 10
-        if ! crontab -l | grep -q "$(pwd)/auto-upgrade.sh"; then
-            (crontab -l ; echo "$((RANDOM % 10)) * * * * $(pwd)/auto-upgrade.sh")| crontab -
-        fi
+        (crontab -l ; echo "$((RANDOM % 10)) * * * * $(pwd)/auto-upgrade.sh")| crontab -
         log_success "Auto-upgrade set up successfully!"
     fi
-else
-    if ! crontab -l | grep -q "$(pwd)/auto-upgrade.sh"; then
-        (crontab -l ; echo "$((RANDOM % 10)) * * * * $(pwd)/auto-upgrade.sh")| crontab -
-    fi
+elif [ "$AUTO_UPGRADE" = "true" ] && [ "$CRONTAB_EXISTS" -ne 0 ]; then
+    (crontab -l ; echo "$((RANDOM % 10)) * * * * $(pwd)/auto-upgrade.sh")| crontab -
     log_success "Auto-upgrade set up successfully!"
 fi
 

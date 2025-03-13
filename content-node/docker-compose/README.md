@@ -16,14 +16,11 @@ Clone this repository and run the setup script:
 The `setup.sh` script will prompt you for environment variables:
 * `SERVER_NAME` = your node's FQDN (details in [Setup Docs – Create the FQDN](https://docs.earthfast.com/node-operators/content-node-setup#create-the-fqdn-fully-qualified-domain-name), eg. `content0.us-east-2.testnet-sepolia.earthfast.operator.com`)
 * `NODE_ID` = the `NodeID` generated in [Setup Docs – Register your Node(s) onchain](https://docs.earthfast.com/node-operators/content-node-setup#register-your-node-s-onchain)
-* `SETUP_SSL` = if you have configured HTTPS/SSL externally, set this to `false`. Setting it to true will locally configure SSL with Let's Encrypt. Make sure the url from SERVER_NAME is correctly pointed to your server's IP address before enabling this option.
 
 Confirm success by curling the `/statusz` endpoint:
 ```sh
 # On the VM outside the container
-> docker exec -it docker-compose-nginx-1 /bin/bash -c "curl http://content-node:5000/statusz"
-# From outside the VM using the FQDN
-> curl <FQDN>:5000/statusz
+> curl localhost/statusz
 ```
 
 > Note: you may need to log out and log back in for your user to be able to run `docker compose`.
@@ -35,9 +32,9 @@ There's an option to enable auto upgrades for the content node, it's recommended
 ./setup.sh --auto-upgrade
 ```
 
-If you want to manually update your Content Node, run the following command:
+You can manually update your Content Node. Please monitor for new updates and run the following command:
 ```sh
-sh update.sh <optional node-operator-tooling/ sha>
+sh update.sh <optional sha>
 ```
 
 ## Useful Docker Compose Commands

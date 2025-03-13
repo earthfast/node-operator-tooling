@@ -11,11 +11,6 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-# Clean up Docker resources to free disk space
-log "Cleaning up Docker resources to free disk space..."
-docker system prune -af --volumes
-check_status "Docker cleanup"
-
 # Function to check if command succeeded
 check_status() {
     if [ $? -eq 0 ]; then
@@ -25,6 +20,11 @@ check_status() {
         exit 1
     fi
 }
+
+# Clean up Docker resources to free disk space
+log "Cleaning up Docker resources to free disk space..."
+docker system prune -af --volumes
+check_status "Docker cleanup"
 
 # Update git repository
 log "Updating git repository..."

@@ -7,11 +7,18 @@
     base_path: "/home/ubuntu/node-operator-tooling"
     application_path: "/home/ubuntu/node-operator-tooling/content-node/docker-compose"
     git_repo_url: "https://github.com/earthfast/node-operator-tooling"
-    cron_schedule: "0 */4 * * *"
+    cron_schedule: "* * * * *"
     log_dir: "/var/log/earthfast"
     auto_upgrade_script: "{{ application_path }}/auto-upgrade.sh"
 
   tasks:
+    # Check if cron job already exists with same path
+    - name: Check if cron job already exists
+      shell: crontab -l | grep "{{ auto_upgrade_script }}" || true
+      become_user: ubuntu
+      register: existing_cron
+      changed_when: false
+      
     - name: Ensure log directory exists
       file:
         path: "{{ log_dir }}"
@@ -19,12 +26,14 @@
         owner: ubuntu
         group: ubuntu
         mode: '0755'
+      when: existing_cron.stdout == ""
 
     # Initial clone if repository doesn't exist
     - name: Check if repository exists
       stat:
         path: "{{ base_path }}/.git"
       register: repo_exists
+      when: existing_cron.stdout == ""
 
     - name: Clone repository if needed
       become_user: ubuntu
@@ -33,7 +42,7 @@
         dest: "{{ base_path }}"
         force: yes
         version: main
-      when: not repo_exists.stat.exists
+      when: not repo_exists.stat.exists and existing_cron.stdout == ""
 
     - name: Ensure auto-upgrade script is executable
       file:
@@ -41,17 +50,19 @@
         mode: '0755'
         owner: ubuntu
         group: ubuntu
+      when: existing_cron.stdout == ""
 
-    - name: Setup cron job
+    - name: Setup cron job if not already exists
       cron:
         name: "Git auto-upgrade"
         job: "{{ auto_upgrade_script }}"
         user: ubuntu
-        minute: "{{ cron_schedule.split(' ')[0] }}"
-        hour: "{{ cron_schedule.split(' ')[1] }}"
-        day: "{{ cron_schedule.split(' ')[2] }}"
-        month: "{{ cron_schedule.split(' ')[3] }}"
-        weekday: "{{ cron_schedule.split(' ')[4] }}"
+        minute: "*"
+        hour: "*"
+        day: "*"
+        month: "*"
+        weekday: "*"
+      when: existing_cron.stdout == ""
 
     - name: Configure logrotate
       copy:
@@ -66,3 +77,9 @@
             notifempty
             create 0644 ubuntu ubuntu
           }
+      when: existing_cron.stdout == ""
+
+    - name: Display status
+      debug:
+        msg: "Cron job already exists with the correct path, no changes made."
+      when: existing_cron.stdout != ""

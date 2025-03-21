@@ -19,67 +19,66 @@
       register: existing_cron
       changed_when: false
       
-    - name: Ensure log directory exists
-      file:
-        path: "{{ log_dir }}"
-        state: directory
-        owner: ubuntu
-        group: ubuntu
-        mode: '0755'
-      when: existing_cron.stdout == ""
-
-    # Initial clone if repository doesn't exist
-    - name: Check if repository exists
-      stat:
-        path: "{{ base_path }}/.git"
-      register: repo_exists
-      when: existing_cron.stdout == ""
-
-    - name: Clone repository if needed
-      become_user: ubuntu
-      git:
-        repo: "{{ git_repo_url }}"
-        dest: "{{ base_path }}"
-        force: yes
-        version: main
-      when: not repo_exists.stat.exists and existing_cron.stdout == ""
-
-    - name: Ensure auto-upgrade script is executable
-      file:
-        path: "{{ auto_upgrade_script }}"
-        mode: '0755'
-        owner: ubuntu
-        group: ubuntu
-      when: existing_cron.stdout == ""
-
-    - name: Setup cron job if not already exists
-      cron:
-        name: "Git auto-upgrade"
-        job: "{{ auto_upgrade_script }}"
-        user: ubuntu
-        minute: "*"
-        hour: "*"
-        day: "*"
-        month: "*"
-        weekday: "*"
-      when: existing_cron.stdout == ""
-
-    - name: Configure logrotate
-      copy:
-        dest: /etc/logrotate.d/git-auto-upgrade
-        mode: '0644'
-        content: |
-          {{ log_dir }}/git-auto-upgrade.log {
-            rotate 7
-            daily
-            compress
-            missingok
-            notifempty
-            create 0644 ubuntu ubuntu
-          }
-      when: existing_cron.stdout == ""
-
-    - name: Display status
+    - name: Display status when cron job exists
       debug:
         msg: "Cron job already exists with the correct path, no changes made."
       when: existing_cron.stdout != ""
+
+    # The rest of the tasks only run when the cron job doesn't exist
+    - name: Setup auto-upgrade when needed
+      when: existing_cron.stdout == ""
+      block:
+        - name: Ensure log directory exists
+          file:
+            path: "{{ log_dir }}"
+            state: directory
+            owner: ubuntu
+            group: ubuntu
+            mode: '0755'
+
+        # Initial clone if repository doesn't exist
+        - name: Check if repository exists
+          stat:
+            path: "{{ base_path }}/.git"
+          register: repo_exists
+
+        - name: Clone repository if needed
+          become_user: ubuntu
+          git:
+            repo: "{{ git_repo_url }}"
+            dest: "{{ base_path }}"
+            force: yes
+            version: main
+          when: not repo_exists.stat.exists
+
+        - name: Ensure auto-upgrade script is executable
+          file:
+            path: "{{ auto_upgrade_script }}"
+            mode: '0755'
+            owner: ubuntu
+            group: ubuntu
+
+        - name: Setup cron job
+          cron:
+            name: "Git auto-upgrade"
+            job: "{{ auto_upgrade_script }}"
+            user: ubuntu
+            minute: "*"
+            hour: "*"
+            day: "*"
+            month: "*"
+            weekday: "*"
+
+        - name: Configure logrotate
+          copy:
+            dest: /etc/logrotate.d/git-auto-upgrade
+            mode: '0644'
+            content: |
+              {{ log_dir }}/git-auto-upgrade.log {
+                rotate 7
+                daily
+                compress
+                missingok
+                notifempty
+                create 0644 ubuntu ubuntu
+              }

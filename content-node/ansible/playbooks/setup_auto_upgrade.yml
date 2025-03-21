@@ -1,4 +1,4 @@
-- name: Setup automatic git pull cron job
+- name: Setup automatic content node upgrade cron job
   hosts: all
   become: true
   gather_facts: true
@@ -9,6 +9,7 @@
     git_repo_url: "https://github.com/earthfast/node-operator-tooling"
     cron_schedule: "0 */4 * * *"
     log_dir: "/var/log/earthfast"
+    auto_upgrade_script: "{{ application_path }}/auto-upgrade.sh"
 
   tasks:
     - name: Ensure log directory exists
@@ -19,125 +20,32 @@
         group: ubuntu
         mode: '0755'
 
-    - name: Check if .env file exists
+    # Initial clone if repository doesn't exist
+    - name: Check if repository exists
       stat:
-        path: "{{ application_path }}/.env"
-      register: env_file
+        path: "{{ base_path }}/.git"
+      register: repo_exists
 
-    - name: Create backup of .env file
+    - name: Clone repository if needed
       become_user: ubuntu
-      copy:
-        src: "{{ application_path }}/.env"
-        dest: "/tmp/.env.backup"
-        remote_src: yes
-      ignore_errors: yes
-      when: env_file.stat.exists
+      git:
+        repo: "{{ git_repo_url }}"
+        dest: "{{ base_path }}"
+        force: yes
+        version: main
+      when: not repo_exists.stat.exists
 
-    - name: Ensure fresh clone of repository
-      block:
-        - name: Remove existing directory
-          file:
-            path: "{{ base_path }}"
-            state: absent
-
-        - name: Create base directory
-          file:
-            path: "{{ base_path }}"
-            state: directory
-            owner: ubuntu
-            group: ubuntu
-            mode: '0755'
-
-        - name: Clone repository
-          become_user: ubuntu
-          git:
-            repo: "{{ git_repo_url }}"
-            dest: "{{ base_path }}"
-            force: yes
-            version: main
-
-    - name: Restore .env file
-      become_user: ubuntu
-      copy:
-        src: "/tmp/.env.backup"
-        dest: "{{ application_path }}/.env"
-        remote_src: yes
-      ignore_errors: yes
-      when: env_file.stat.exists
-
-    - name: Create auto-upgrade script
-      copy:
-        dest: /usr/local/bin/git-auto-upgrade.sh
+    - name: Ensure auto-upgrade script is executable
+      file:
+        path: "{{ auto_upgrade_script }}"
         mode: '0755'
         owner: ubuntu
         group: ubuntu
-        content: |
-          #!/bin/bash
-          set -e
-          
-          LOG_FILE="{{ log_dir }}/git-auto-upgrade.log"
-          echo "=== Starting auto-upgrade at $(date) ===" >> "$LOG_FILE"
-          
-          # Ensure base directory exists
-          if [ ! -d "{{ base_path }}" ]; then
-            mkdir -p "{{ base_path }}"
-            cd "{{ base_path }}"
-            git clone "{{ git_repo_url }}" .
-          fi
-          
-          cd "{{ base_path }}"
-          
-          # Backup .env if exists
-          if [ -f "{{ application_path }}/.env" ]; then
-            cp "{{ application_path }}/.env" /tmp/.env.backup
-          fi
-          
-          # Update repository
-          if [ -d .git ]; then
-            git fetch origin
-            git reset --hard origin/main
-          else
-            git clone "{{ git_repo_url }}" .
-          fi
-          
-          # Restore .env
-          if [ -f /tmp/.env.backup ]; then
-            mkdir -p "{{ application_path }}"
-            cp /tmp/.env.backup "{{ application_path }}/.env"
-            rm /tmp/.env.backup
-          fi
-          
-          # Docker operations
-          cd "{{ application_path }}"
-          COMPOSE_FILE=$(ls docker-compose.y*ml 2>/dev/null | head -n 1)
-          
-          if [ -z "$COMPOSE_FILE" ]; then
-            echo "Error: No docker-compose file found!" >> "$LOG_FILE"
-            exit 1
-          fi
-          
-          docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
-          docker container prune -f
-          docker network prune -f
-          
-          # Start services and don't fail if certbot has issues
-          if ! docker compose -f "$COMPOSE_FILE" up -d; then
-            echo "Warning: Some services failed to start properly" >> "$LOG_FILE"
-            # Check if main services are running
-            if docker ps | grep -q "content-node"; then
-              echo "Main content-node service is running, continuing..." >> "$LOG_FILE"
-            else
-              echo "Critical service content-node is not running, exiting with error" >> "$LOG_FILE"
-              exit 1
-            fi
-          fi
-          
-          echo "=== Completed auto-upgrade at $(date) ===" >> "$LOG_FILE"
 
     - name: Setup cron job
       cron:
         name: "Git auto-upgrade"
-        job: "/usr/local/bin/git-auto-upgrade.sh"
+        job: "{{ auto_upgrade_script }}"
         user: ubuntu
         minute: "{{ cron_schedule.split(' ')[0] }}"
         hour: "{{ cron_schedule.split(' ')[1] }}"
@@ -158,9 +66,3 @@
             notifempty
             create 0644 ubuntu ubuntu
           }
-
-    - name: Test script execution
-      become_user: ubuntu
-      command: /usr/local/bin/git-auto-upgrade.sh
-      register: test_result
-      ignore_errors: yes

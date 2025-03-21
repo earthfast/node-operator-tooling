@@ -18,7 +18,7 @@
       become_user: ubuntu
       register: existing_cron
       changed_when: false
-      
+
     - name: Display status when cron job exists
       debug:
         msg: "Cron job already exists with the correct path, no changes made."
@@ -34,7 +34,7 @@
             state: directory
             owner: ubuntu
             group: ubuntu
-            mode: '0755'
+            mode: "0755"
 
         # Initial clone if repository doesn't exist
         - name: Check if repository exists
@@ -54,7 +54,7 @@
         - name: Ensure auto-upgrade script is executable
           file:
             path: "{{ auto_upgrade_script }}"
-            mode: '0755'
+            mode: "0755"
             owner: ubuntu
             group: ubuntu
 
@@ -72,7 +72,7 @@
         - name: Configure logrotate
           copy:
             dest: /etc/logrotate.d/git-auto-upgrade
-            mode: '0644'
+            mode: "0644"
             content: |
               {{ log_dir }}/git-auto-upgrade.log {
                 rotate 7

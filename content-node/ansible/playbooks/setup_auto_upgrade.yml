@@ -1,4 +1,4 @@
-- name: Setup automatic git pull cron job
+- name: Setup automatic content node upgrade cron job
   hosts: all
   become: true
   gather_facts: true
@@ -7,160 +7,56 @@
     base_path: "/home/ubuntu/node-operator-tooling"
     application_path: "/home/ubuntu/node-operator-tooling/content-node/docker-compose"
     git_repo_url: "https://github.com/earthfast/node-operator-tooling"
-    cron_schedule: "0 */4 * * *"
+    cron_schedule: "* * * * *"
     log_dir: "/var/log/earthfast"
+    auto_upgrade_script: "{{ application_path }}/auto-upgrade.sh"
 
   tasks:
-    - name: Ensure log directory exists
-      file:
-        path: "{{ log_dir }}"
-        state: directory
-        owner: ubuntu
-        group: ubuntu
-        mode: '0755'
-
-    - name: Check if .env file exists
-      stat:
-        path: "{{ application_path }}/.env"
-      register: env_file
-
-    - name: Create backup of .env file
+    # Check if cron job already exists with same path
+    - name: Check if cron job already exists
+      shell: crontab -l | grep "{{ auto_upgrade_script }}" || true
       become_user: ubuntu
-      copy:
-        src: "{{ application_path }}/.env"
-        dest: "/tmp/.env.backup"
-        remote_src: yes
-      ignore_errors: yes
-      when: env_file.stat.exists
+      register: existing_cron
+      changed_when: false
 
-    - name: Ensure fresh clone of repository
+    - name: Display status when cron job exists
+      debug:
+        msg: "Cron job already exists with the correct path, no changes made."
+      when: existing_cron.stdout != ""
+
+    # The rest of the tasks only run when the cron job doesn't exist
+    - name: Setup auto-upgrade when needed
+      when: existing_cron.stdout == ""
       block:
-        - name: Remove existing directory
+        - name: Ensure log directory exists
           file:
-            path: "{{ base_path }}"
-            state: absent
-
-        - name: Create base directory
-          file:
-            path: "{{ base_path }}"
+            path: "{{ log_dir }}"
             state: directory
             owner: ubuntu
             group: ubuntu
-            mode: '0755'
+            mode: "0755"
 
-        - name: Clone repository
-          become_user: ubuntu
-          git:
-            repo: "{{ git_repo_url }}"
-            dest: "{{ base_path }}"
-            force: yes
-            version: main
+        - name: Setup cron job
+          cron:
+            name: "Git auto-upgrade"
+            job: "{{ auto_upgrade_script }}"
+            user: ubuntu
+            minute: "*"
+            hour: "*"
+            day: "*"
+            month: "*"
+            weekday: "*"
 
-    - name: Restore .env file
-      become_user: ubuntu
-      copy:
-        src: "/tmp/.env.backup"
-        dest: "{{ application_path }}/.env"
-        remote_src: yes
-      ignore_errors: yes
-      when: env_file.stat.exists
-
-    - name: Create auto-upgrade script
-      copy:
-        dest: /usr/local/bin/git-auto-upgrade.sh
-        mode: '0755'
-        owner: ubuntu
-        group: ubuntu
-        content: |
-          #!/bin/bash
-          set -e
-          
-          LOG_FILE="{{ log_dir }}/git-auto-upgrade.log"
-          echo "=== Starting auto-upgrade at $(date) ===" >> "$LOG_FILE"
-          
-          # Ensure base directory exists
-          if [ ! -d "{{ base_path }}" ]; then
-            mkdir -p "{{ base_path }}"
-            cd "{{ base_path }}"
-            git clone "{{ git_repo_url }}" .
-          fi
-          
-          cd "{{ base_path }}"
-          
-          # Backup .env if exists
-          if [ -f "{{ application_path }}/.env" ]; then
-            cp "{{ application_path }}/.env" /tmp/.env.backup
-          fi
-          
-          # Update repository
-          if [ -d .git ]; then
-            git fetch origin
-            git reset --hard origin/main
-          else
-            git clone "{{ git_repo_url }}" .
-          fi
-          
-          # Restore .env
-          if [ -f /tmp/.env.backup ]; then
-            mkdir -p "{{ application_path }}"
-            cp /tmp/.env.backup "{{ application_path }}/.env"
-            rm /tmp/.env.backup
-          fi
-          
-          # Docker operations
-          cd "{{ application_path }}"
-          COMPOSE_FILE=$(ls docker-compose.y*ml 2>/dev/null | head -n 1)
-          
-          if [ -z "$COMPOSE_FILE" ]; then
-            echo "Error: No docker-compose file found!" >> "$LOG_FILE"
-            exit 1
-          fi
-          
-          docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
-          docker container prune -f
-          docker network prune -f
-          
-          # Start services and don't fail if certbot has issues
-          if ! docker compose -f "$COMPOSE_FILE" up -d; then
-            echo "Warning: Some services failed to start properly" >> "$LOG_FILE"
-            # Check if main services are running
-            if docker ps | grep -q "content-node"; then
-              echo "Main content-node service is running, continuing..." >> "$LOG_FILE"
-            else
-              echo "Critical service content-node is not running, exiting with error" >> "$LOG_FILE"
-              exit 1
-            fi
-          fi
-          
-          echo "=== Completed auto-upgrade at $(date) ===" >> "$LOG_FILE"
-
-    - name: Setup cron job
-      cron:
-        name: "Git auto-upgrade"
-        job: "/usr/local/bin/git-auto-upgrade.sh"
-        user: ubuntu
-        minute: "{{ cron_schedule.split(' ')[0] }}"
-        hour: "{{ cron_schedule.split(' ')[1] }}"
-        day: "{{ cron_schedule.split(' ')[2] }}"
-        month: "{{ cron_schedule.split(' ')[3] }}"
-        weekday: "{{ cron_schedule.split(' ')[4] }}"
-
-    - name: Configure logrotate
-      copy:
-        dest: /etc/logrotate.d/git-auto-upgrade
-        mode: '0644'
-        content: |
-          {{ log_dir }}/git-auto-upgrade.log {
-            rotate 7
-            daily
-            compress
-            missingok
-            notifempty
-            create 0644 ubuntu ubuntu
-          }
-
-    - name: Test script execution
-      become_user: ubuntu
-      command: /usr/local/bin/git-auto-upgrade.sh
-      register: test_result
-      ignore_errors: yes
+        - name: Configure logrotate
+          copy:
+            dest: /etc/logrotate.d/git-auto-upgrade
+            mode: "0644"
+            content: |
+              {{ log_dir }}/git-auto-upgrade.log {
+                rotate 7
+                daily
+                compress
+                missingok
+                notifempty
+                create 0644 ubuntu ubuntu
+              }

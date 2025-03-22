@@ -36,28 +36,6 @@
             group: ubuntu
             mode: "0755"
 
-        # Initial clone if repository doesn't exist
-        - name: Check if repository exists
-          stat:
-            path: "{{ base_path }}/.git"
-          register: repo_exists
-
-        - name: Clone repository if needed
-          become_user: ubuntu
-          git:
-            repo: "{{ git_repo_url }}"
-            dest: "{{ base_path }}"
-            force: yes
-            version: main
-          when: not repo_exists.stat.exists
-
-        - name: Ensure auto-upgrade script is executable
-          file:
-            path: "{{ auto_upgrade_script }}"
-            mode: "0755"
-            owner: ubuntu
-            group: ubuntu
-
         - name: Setup cron job
           cron:
             name: "Git auto-upgrade"

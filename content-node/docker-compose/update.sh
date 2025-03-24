@@ -58,11 +58,9 @@ docker system prune -af --volumes=false || log "Warning: Docker cleanup failed, 
 
 # Update repository
 cd "$SCRIPT_DIR"
-GIT_CHANGES_NEEDED=false
 
 if [ -n "$COMMIT_HASH" ]; then
     # Using provided commit hash
-    GIT_CHANGES_NEEDED=true
     log "Using provided commit hash: $COMMIT_HASH"
 
     git fetch origin
@@ -86,7 +84,6 @@ else
     REMOTE=$(git rev-parse origin/$BRANCH_NAME)
 
     if [ "$LOCAL" != "$REMOTE" ]; then
-        GIT_CHANGES_NEEDED=true
         log "Changes detected, updating repository..."
         git reset --hard origin/$BRANCH_NAME || {
             log "Failed to reset to latest $BRANCH_NAME"
@@ -95,7 +92,7 @@ else
         log "Successfully updated to latest commit"
     else
         log "No changes detected, skipping git update"
-        
+
         # Check if we can exit early - only if services are also running
         if [ "$SERVICES_RUNNING" = true ]; then
             log "No changes needed and services are already running"

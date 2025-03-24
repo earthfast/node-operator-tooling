@@ -37,6 +37,15 @@ if [ -z "$COMPOSE_FILE" ]; then
     exit 1
 fi
 
+# Check if services are currently running
+SERVICES_RUNNING=false
+if docker ps | grep -q "content-node"; then
+    SERVICES_RUNNING=true
+    log "Content node service is currently running"
+else
+    log "Content node service is NOT currently running"
+fi
+
 # Backup .env if exists
 if [ -f "$SCRIPT_DIR/.env" ]; then
     cp "$SCRIPT_DIR/.env" /tmp/.env.backup
@@ -49,9 +58,11 @@ docker system prune -af --volumes=false || log "Warning: Docker cleanup failed, 
 
 # Update repository
 cd "$SCRIPT_DIR"
+GIT_CHANGES_NEEDED=false
 
 if [ -n "$COMMIT_HASH" ]; then
     # Using provided commit hash
+    GIT_CHANGES_NEEDED=true
     log "Using provided commit hash: $COMMIT_HASH"
 
     git fetch origin
@@ -75,6 +86,7 @@ else
     REMOTE=$(git rev-parse origin/$BRANCH_NAME)
 
     if [ "$LOCAL" != "$REMOTE" ]; then
+        GIT_CHANGES_NEEDED=true
         log "Changes detected, updating repository..."
         git reset --hard origin/$BRANCH_NAME || {
             log "Failed to reset to latest $BRANCH_NAME"
@@ -83,13 +95,19 @@ else
         log "Successfully updated to latest commit"
     else
         log "No changes detected, skipping git update"
-        # Early exit if nothing to do
-        log "=== Completed update check at $(date) - no changes needed ==="
-        # Clean up backup if no changes
-        if [ -f /tmp/.env.backup ]; then
-            rm /tmp/.env.backup
+        
+        # Check if we can exit early - only if services are also running
+        if [ "$SERVICES_RUNNING" = true ]; then
+            log "No changes needed and services are already running"
+            log "=== Completed update check at $(date) - no changes needed ==="
+            # Clean up backup if no changes
+            if [ -f /tmp/.env.backup ]; then
+                rm /tmp/.env.backup
+            fi
+            exit 0
+        else
+            log "No git changes, but services need to be started"
         fi
-        exit 0
     fi
 fi
 

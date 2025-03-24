@@ -1,14 +1,14 @@
 #!/bin/bash
-# Usage: ./update.sh [commit_hash]
-# If commit_hash is provided, updates to that specific commit
-# If no commit_hash is provided, updates to the latest commit on main
+# Usage: ./update.sh [tag_or_hash]
+# If tag_or_hash is provided, updates the docker-compose file to use that specific image tag
+# If no tag_or_hash is provided, updates to the latest commit on main
 set -e
 
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="$SCRIPT_DIR/logs/update.log"
 BRANCH_NAME="main"
-COMMIT_HASH="$1"
+IMAGE_TAG="$1"  # This can be either a commit hash or a custom image tag
 
 # Create logs directory if it doesn't exist
 mkdir -p "$SCRIPT_DIR/logs"
@@ -22,7 +22,7 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-log "=== Starting update $([ -n "$COMMIT_HASH" ] && echo "to commit $COMMIT_HASH" || echo "to latest version") ==="
+log "=== Starting update $([ -n "$IMAGE_TAG" ] && echo "to image tag/commit $IMAGE_TAG" || echo "to latest version") ==="
 
 # Verify compose directory exists
 if [ ! -d "$SCRIPT_DIR" ]; then
@@ -37,13 +37,11 @@ if [ -z "$COMPOSE_FILE" ]; then
     exit 1
 fi
 
-# Check if services are currently running
-SERVICES_RUNNING=false
-if docker ps | grep -q "content-node"; then
+# Check if services are running
+if docker compose -f "$COMPOSE_FILE" ps 2>/dev/null | grep -q "Up"; then
     SERVICES_RUNNING=true
-    log "Content node service is currently running"
 else
-    log "Content node service is NOT currently running"
+    SERVICES_RUNNING=false
 fi
 
 # Backup .env if exists
@@ -59,24 +57,39 @@ docker system prune -af --volumes=false || log "Warning: Docker cleanup failed, 
 # Update repository
 cd "$SCRIPT_DIR"
 
-if [ -n "$COMMIT_HASH" ]; then
-    # Using provided commit hash
-    log "Using provided commit hash: $COMMIT_HASH"
+if [ -n "$IMAGE_TAG" ]; then
+    # Using provided image tag or commit hash
+    log "Using provided tag/hash: $IMAGE_TAG"
 
-    git fetch origin
-    git checkout main
+    # Check if it looks like a commit hash (40 hex characters)
+    if [[ $IMAGE_TAG =~ ^[0-9a-f]{40}$ ]]; then
+        log "Appears to be a commit hash, checking if it exists..."
+        
+        git fetch origin
+        git checkout main
 
-    # Check if commit exists
-    if ! git cat-file -e "$COMMIT_HASH^{commit}" 2>/dev/null; then
-        log "Error: Commit hash $COMMIT_HASH does not exist"
-        exit 1
+        # Check if commit exists
+        if git cat-file -e "$IMAGE_TAG^{commit}" 2>/dev/null; then
+            log "Valid commit hash confirmed"
+        else
+            log "Warning: $IMAGE_TAG looks like a commit hash but doesn't exist in the repository"
+            log "Will still attempt to use it as an image tag"
+        fi
+    else
+        log "Using as a custom image tag"
     fi
 
-    # Update to specific commit
-    git reset --hard "$COMMIT_HASH" || {
-        log "Failed to reset to commit $COMMIT_HASH"
+    # Update docker-compose.yml with new image tag
+    log "Updating docker-compose.yml to use image with tag: $IMAGE_TAG"
+    sed -i "s|earthfast/content-node:.*|earthfast/content-node:${IMAGE_TAG}|" "$COMPOSE_FILE"
+    
+    # Verify the image tag was updated correctly
+    if grep -q "earthfast/content-node:${IMAGE_TAG}" "$COMPOSE_FILE"; then
+        log "✓ Successfully updated image tag in docker-compose file"
+    else
+        log "✗ Failed to update image tag in docker-compose file"
         exit 1
-    }
+    fi
 else
     # Auto-detect changes
     git fetch origin

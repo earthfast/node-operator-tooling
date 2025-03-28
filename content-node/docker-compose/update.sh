@@ -57,6 +57,15 @@ docker system prune -af --volumes=false || log "Warning: Docker cleanup failed, 
 # Update repository
 cd "$SCRIPT_DIR"
 
+# Fix Git repository permissions
+log "Checking and fixing Git repository permissions..."
+cd "$(git rev-parse --show-toplevel 2>/dev/null || echo "$SCRIPT_DIR")" || {
+    log "Failed to find Git repository root, using script directory"
+}
+sudo chown -R ubuntu:ubuntu .git/ || log "Warning: Failed to update Git ownership, but continuing"
+chmod -R u+rwX .git/ || log "Warning: Failed to update Git permissions, but continuing"
+cd "$SCRIPT_DIR"  # Return to script directory
+
 if [ -n "$IMAGE_TAG" ]; then
     # Using provided image tag or commit hash
     log "Using provided tag/hash: $IMAGE_TAG"
